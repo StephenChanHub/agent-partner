@@ -1,0 +1,571 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ModelProvider {
+  MOCK
+  GEMINI
+  DEEPSEEK
+  OPENAI
+  CLAUDE
+  CUSTOM
+}
+
+enum VoiceProvider {
+  MOCK
+  ELEVENLABS
+  OPENAI
+  AZURE
+  LOCAL
+  CUSTOM
+}
+
+enum ResourceProfileStatus {
+  ACTIVE
+  PUBLISHED
+  DISABLED
+  ARCHIVED
+}
+
+enum DeviceType {
+  VOICE_TERMINAL
+  MOBILE_ROBOT
+  DESKTOP_CLIENT
+}
+
+enum DeviceStatus {
+  BOUND
+  REVOKED
+  DISABLED
+}
+
+enum AgentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AgentVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AgentSessionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum EventSource {
+  DASHBOARD
+  DEVICE
+  STUDIO
+  SYSTEM
+  SCHEDULER
+  WEBHOOK
+}
+
+enum RuntimeEventType {
+  USER_TEXT
+  USER_VOICE
+  DEVICE_CONNECTED
+  DEVICE_HEARTBEAT
+  DEVICE_TELEMETRY
+  ROBOT_ACTION_RESULT
+  STUDIO_AGENT_PUBLISHED
+  SYSTEM_TASK
+}
+
+enum RuntimeEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum IntentDomain {
+  CHAT
+  ROBOT
+  SYSTEM
+  SKILL
+  UNKNOWN
+}
+
+enum IntentName {
+  CHAT_MESSAGE
+  MOVE
+  TURN
+  STOP
+  FOLLOW_ME
+  DOCK
+  QUERY_STATUS
+  QUERY_BATTERY
+  PLAY_VOICE
+  UNKNOWN
+}
+
+enum IntentStatus {
+  DETECTED
+  CONFIRMED
+  REJECTED
+  LOW_CONFIDENCE
+  FAILED
+}
+
+enum ActionDomain {
+  CHAT
+  ROBOT
+  SYSTEM
+  SKILL
+  VOICE
+  DEVICE
+}
+
+enum ActionType {
+  GENERATE_REPLY
+  GENERATE_VOICE
+  MOVE
+  TURN
+  STOP
+  FOLLOW_ME
+  DOCK
+  QUERY_STATUS
+  QUERY_BATTERY
+  DEVICE_NOTIFY
+  SKILL_EXECUTE
+}
+
+enum ActionStatus {
+  PENDING
+  DISPATCHED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  TIMEOUT
+  REJECTED
+}
+
+enum UsageRecordType {
+  LLM_USAGE
+  STT_USAGE
+  TTS_USAGE
+  MANUAL_ADJUSTMENT
+  SYSTEM_GRANT
+}
+
+
+enum RechargeOrderStatus {
+  PENDING
+  PAID
+  EXPIRED
+}
+
+enum PaymentProvider {
+  MOCK
+  WECHAT
+  ALIPAY
+}
+
+enum PaymentMethod {
+  MOCK
+  WECHAT_QR
+  ALIPAY_QR
+}
+
+enum AgentTokenTransactionType {
+  RECHARGE
+  USAGE
+  ADMIN_RECHARGE
+  ADMIN_ADJUST
+  REFUND
+  GIFT
+}
+
+enum AgentTokenTransactionDirection {
+  CREDIT
+  DEBIT
+}
+
+model User {
+  id               String         @id @default(uuid()) @db.Char(36)
+  email            String         @unique @db.VarChar(255)
+  passwordHash     String         @map("password_hash") @db.VarChar(255)
+  nickname         String         @db.VarChar(64)
+  avatarUrl        String?        @map("avatar_url") @db.VarChar(512)
+  emailVerifiedAt DateTime?      @map("email_verified_at")
+  role             UserRole       @default(USER)
+  balanceTokens    BigInt         @default(0) @map("balance_tokens")
+  usedTokens       BigInt         @default(0) @map("used_tokens")
+  currentSessionId String?        @map("current_session_id") @db.Char(36)
+  lastSeenAt       DateTime?      @map("last_seen_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  currentSession   AgentSession?  @relation("UserCurrentSession", fields: [currentSessionId], references: [id], onDelete: SetNull)
+  devices          Device[]
+  agentSessions    AgentSession[] @relation("UserAgentSessions")
+  runtimeEvents    RuntimeEvent[]
+  usageRecords     UsageRecord[]
+  rechargeOrders   RechargeOrder[]
+  agentTokenTransactions AgentTokenTransaction[]
+  operatedTokenTransactions AgentTokenTransaction[] @relation("AgentTokenTransactionOperator")
+  createdModelProfiles ModelProfile[] @relation("ModelProfileCreatedBy")
+  createdVoiceProfiles VoiceProfile[] @relation("VoiceProfileCreatedBy")
+
+  @@index([currentSessionId])
+  @@map("users")
+}
+
+model Device {
+  id            String         @id @default(uuid()) @db.Char(36)
+  userId        String         @map("user_id") @db.Char(36)
+  deviceSn      String         @unique @map("device_sn") @db.VarChar(128)
+  name          String         @db.VarChar(128)
+  deviceType    DeviceType     @map("device_type")
+  tokenHash     String         @map("token_hash") @db.VarChar(255)
+  capabilities  Json?
+  status        DeviceStatus   @default(BOUND)
+  lastSeenAt    DateTime?      @map("last_seen_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runtimeEvents RuntimeEvent[]
+  actionRecords ActionRecord[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("devices")
+}
+
+model ModelProfile {
+  id                 String                @id @default(uuid()) @db.Char(36)
+  provider           ModelProvider
+  displayName        String                @map("display_name") @db.VarChar(128)
+  modelName          String                @map("model_name") @db.VarChar(128)
+  baseUrl            String?               @map("base_url") @db.VarChar(512)
+  apiKeyEncrypted    String?               @map("api_key_encrypted") @db.Text
+  apiKeyLastFour     String?               @map("api_key_last_four") @db.VarChar(16)
+  defaultTemperature Decimal?              @map("default_temperature") @db.Decimal(4, 2)
+  defaultMaxTokens   Int?                  @map("default_max_tokens")
+  defaultTimeoutMs   Int?                  @map("default_timeout_ms")
+  extraConfig        Json?                 @map("extra_config")
+  status             ResourceProfileStatus @default(ACTIVE)
+  isDefault          Boolean               @default(false) @map("is_default")
+  createdById        String?               @map("created_by_id") @db.Char(36)
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  createdBy          User?                 @relation("ModelProfileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  usageRecords       UsageRecord[]
+
+  @@unique([provider, displayName])
+  @@index([provider, status])
+  @@index([isDefault])
+  @@index([createdById])
+  @@map("model_profiles")
+}
+
+model VoiceProfile {
+  id                     String                @id @default(uuid()) @db.Char(36)
+  provider               VoiceProvider
+  displayName            String                @map("display_name") @db.VarChar(128)
+  voiceId                String                @map("voice_id") @db.VarChar(255)
+  modelId                String?               @map("model_id") @db.VarChar(128)
+  outputFormat           String?               @map("output_format") @db.VarChar(64)
+  language               String?               @db.VarChar(32)
+  description            String?               @db.Text
+  previewAudioUrl        String?               @map("preview_audio_url") @db.VarChar(512)
+  defaultSpeed           Decimal?              @map("default_speed") @db.Decimal(4, 2)
+  defaultStability       Decimal?              @map("default_stability") @db.Decimal(4, 2)
+  defaultSimilarityBoost Decimal?              @map("default_similarity_boost") @db.Decimal(4, 2)
+  extraConfig            Json?                 @map("extra_config")
+  status                 ResourceProfileStatus @default(ACTIVE)
+  isDefault              Boolean               @default(false) @map("is_default")
+  createdById            String?               @map("created_by_id") @db.Char(36)
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+
+  createdBy              User?                 @relation("VoiceProfileCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  usageRecords           UsageRecord[]
+
+  @@unique([provider, voiceId])
+  @@index([provider, status])
+  @@index([language])
+  @@index([isDefault])
+  @@index([createdById])
+  @@map("voice_profiles")
+}
+
+model Agent {
+  id                 String           @id @default(uuid()) @db.Char(36)
+  slug               String           @unique @db.VarChar(128)
+  status             AgentStatus      @default(DRAFT)
+  publishedVersionId String?          @map("published_version_id") @db.Char(36)
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  publishedVersion   AgentVersion?    @relation("AgentPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
+  versions           AgentVersion[]   @relation("AgentVersions")
+  sessions           AgentSession[]
+  usageRecords       UsageRecord[]
+
+  @@index([status])
+  @@index([publishedVersionId])
+  @@map("agents")
+}
+
+model AgentVersion {
+  id                String             @id @default(uuid()) @db.Char(36)
+  agentId           String             @map("agent_id") @db.Char(36)
+  version           String             @db.VarChar(32)
+  status            AgentVersionStatus @default(DRAFT)
+  manifest          Json
+  manifestHash      String             @map("manifest_hash") @db.VarChar(128)
+  changelog         String?            @db.Text
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  agent             Agent              @relation("AgentVersions", fields: [agentId], references: [id], onDelete: Cascade)
+  publishedByAgents Agent[]            @relation("AgentPublishedVersion")
+
+  @@unique([agentId, version])
+  @@unique([agentId, manifestHash])
+  @@index([agentId])
+  @@index([status])
+  @@map("agent_versions")
+}
+
+model AgentSession {
+  id               String             @id @default(uuid()) @db.Char(36)
+  userId           String             @map("user_id") @db.Char(36)
+  agentId          String             @map("agent_id") @db.Char(36)
+  title            String?            @db.VarChar(128)
+  status           AgentSessionStatus @default(ACTIVE)
+  summary          String?            @db.LongText
+  summaryUpdatedAt DateTime?          @map("summary_updated_at")
+  messageCount     Int                @default(0) @map("message_count")
+  lastMessageAt    DateTime?          @map("last_message_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  archivedAt       DateTime?          @map("archived_at")
+
+  user             User               @relation("UserAgentSessions", fields: [userId], references: [id], onDelete: Cascade)
+  agent            Agent              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  messages         Message[]
+  currentForUsers  User[]             @relation("UserCurrentSession")
+  runtimeEvents    RuntimeEvent[]
+  usageRecords     UsageRecord[]
+
+  @@unique([userId, agentId])
+  @@index([userId, updatedAt])
+  @@index([agentId])
+  @@index([status])
+  @@map("agent_sessions")
+}
+
+model Message {
+  id             String         @id @default(uuid()) @db.Char(36)
+  agentSessionId String         @map("agent_session_id") @db.Char(36)
+  role           MessageRole
+  content        String         @db.LongText
+  metadata       Json?
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  agentSession   AgentSession   @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+  actionRecords  ActionRecord[]
+
+  @@index([agentSessionId, createdAt])
+  @@index([role])
+  @@map("messages")
+}
+
+model RuntimeEvent {
+  id             String             @id @default(uuid()) @db.Char(36)
+  source         EventSource
+  type           RuntimeEventType
+  status         RuntimeEventStatus @default(RECEIVED)
+  userId         String?            @map("user_id") @db.Char(36)
+  deviceId       String?            @map("device_id") @db.Char(36)
+  agentSessionId String?            @map("agent_session_id") @db.Char(36)
+  rawText        String?            @map("raw_text") @db.LongText
+  payload        Json?
+  errorCode      String?            @map("error_code") @db.VarChar(64)
+  errorMessage   String?            @map("error_message") @db.Text
+  createdAt      DateTime           @default(now()) @map("created_at")
+  processedAt    DateTime?          @map("processed_at")
+
+  user           User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device         Device?            @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  agentSession   AgentSession?      @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  intentRecord   IntentRecord?
+  actionRecords  ActionRecord[]
+  usageRecords   UsageRecord[]
+
+  @@index([userId, createdAt])
+  @@index([deviceId, createdAt])
+  @@index([agentSessionId, createdAt])
+  @@index([source, type])
+  @@index([status])
+  @@map("runtime_events")
+}
+
+model IntentRecord {
+  id             String       @id @default(uuid()) @db.Char(36)
+  runtimeEventId String       @unique @map("runtime_event_id") @db.Char(36)
+  domain         IntentDomain
+  name           IntentName
+  status         IntentStatus @default(DETECTED)
+  confidence     Decimal?     @db.Decimal(5, 4)
+  slots          Json?
+  reason         String?      @db.Text
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  runtimeEvent   RuntimeEvent @relation(fields: [runtimeEventId], references: [id], onDelete: Cascade)
+
+  @@index([domain, name])
+  @@index([status])
+  @@map("intent_records")
+}
+
+model ActionRecord {
+  id              String       @id @default(uuid()) @db.Char(36)
+  runtimeEventId  String       @map("runtime_event_id") @db.Char(36)
+  deviceId        String?      @map("device_id") @db.Char(36)
+  messageId       String?      @map("message_id") @db.Char(36)
+  domain          ActionDomain
+  type            ActionType
+  status          ActionStatus @default(PENDING)
+  commandPayload  Json?        @map("command_payload")
+  resultPayload   Json?        @map("result_payload")
+  errorCode       String?      @map("error_code") @db.VarChar(64)
+  errorMessage    String?      @map("error_message") @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+  dispatchedAt    DateTime?    @map("dispatched_at")
+  completedAt     DateTime?    @map("completed_at")
+
+  runtimeEvent    RuntimeEvent @relation(fields: [runtimeEventId], references: [id], onDelete: Cascade)
+  device          Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  message         Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([runtimeEventId])
+  @@index([deviceId, createdAt])
+  @@index([messageId])
+  @@index([domain, type])
+  @@index([status])
+  @@map("action_records")
+}
+
+model UsageRecord {
+  id              String          @id @default(uuid()) @db.Char(36)
+  userId          String          @map("user_id") @db.Char(36)
+  agentId         String?         @map("agent_id") @db.Char(36)
+  agentSessionId  String?         @map("agent_session_id") @db.Char(36)
+  runtimeEventId  String?         @map("runtime_event_id") @db.Char(36)
+  modelProfileId  String?         @map("model_profile_id") @db.Char(36)
+  voiceProfileId  String?         @map("voice_profile_id") @db.Char(36)
+  type            UsageRecordType
+  inputTokens     Int             @default(0) @map("input_tokens")
+  outputTokens    Int             @default(0) @map("output_tokens")
+  totalTokens     Int             @default(0) @map("total_tokens")
+  sttSeconds      Decimal?        @map("stt_seconds") @db.Decimal(10, 3)
+  ttsCharacters   Int             @default(0) @map("tts_characters")
+  costTokens      Int             @default(0) @map("cost_tokens") // final charged Agent Tokens
+  rawCostCny     Decimal?        @map("raw_cost_cny") @db.Decimal(12, 6)
+  billingMultiplier Decimal?     @default(1.50) @map("billing_multiplier") @db.Decimal(4, 2)
+  pricingSnapshot Json?          @map("pricing_snapshot")
+  metadata        Json?
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent           Agent?          @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  agentSession    AgentSession?   @relation(fields: [agentSessionId], references: [id], onDelete: SetNull)
+  runtimeEvent    RuntimeEvent?   @relation(fields: [runtimeEventId], references: [id], onDelete: SetNull)
+  modelProfile    ModelProfile?   @relation(fields: [modelProfileId], references: [id], onDelete: SetNull)
+  voiceProfile    VoiceProfile?   @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
+  tokenTransactions AgentTokenTransaction[]
+
+  @@index([userId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([agentSessionId, createdAt])
+  @@index([runtimeEventId])
+  @@index([modelProfileId])
+  @@index([voiceProfileId])
+  @@index([type, createdAt])
+  @@map("usage_records")
+}
+
+
+model RechargeOrder {
+  id              String              @id @default(uuid()) @db.Char(36)
+  orderNo         String              @unique @map("order_no") @db.VarChar(64)
+  userId          String              @map("user_id") @db.Char(36)
+  amountRmb       Decimal             @map("amount_rmb") @db.Decimal(12, 2)
+  currency        String              @default("CNY") @db.VarChar(8)
+  agentTokens     BigInt              @map("agent_tokens")
+  status          RechargeOrderStatus @default(PENDING)
+  paymentProvider PaymentProvider     @default(MOCK) @map("payment_provider")
+  paymentMethod   PaymentMethod       @default(MOCK) @map("payment_method")
+  paymentTradeNo  String?             @map("payment_trade_no") @db.VarChar(128)
+  paymentPayload  Json?               @map("payment_payload")
+  expiresAt       DateTime            @map("expires_at")
+  paidAt          DateTime?           @map("paid_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenTransactions AgentTokenTransaction[]
+
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("recharge_orders")
+}
+
+model AgentTokenTransaction {
+  id                   String                         @id @default(uuid()) @db.Char(36)
+  userId               String                         @map("user_id") @db.Char(36)
+  type                 AgentTokenTransactionType
+  direction            AgentTokenTransactionDirection
+  amountTokens         BigInt                         @map("amount_tokens")
+  balanceBefore        BigInt                         @map("balance_before")
+  balanceAfter         BigInt                         @map("balance_after")
+  relatedOrderId       String?                        @map("related_order_id") @db.Char(36)
+  relatedUsageRecordId String?                        @map("related_usage_record_id") @db.Char(36)
+  operatorAdminId      String?                        @map("operator_admin_id") @db.Char(36)
+  description          String?                        @db.VarChar(255)
+  metadata             Json?
+  createdAt            DateTime                       @default(now()) @map("created_at")
+
+  user                 User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedOrder         RechargeOrder?                 @relation(fields: [relatedOrderId], references: [id], onDelete: SetNull)
+  relatedUsageRecord   UsageRecord?                   @relation(fields: [relatedUsageRecordId], references: [id], onDelete: SetNull)
+  operatorAdmin        User?                          @relation("AgentTokenTransactionOperator", fields: [operatorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([direction, createdAt])
+  @@index([relatedOrderId])
+  @@index([relatedUsageRecordId])
+  @@index([operatorAdminId])
+  @@map("agent_token_transactions")
+}

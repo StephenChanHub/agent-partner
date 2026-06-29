@@ -1,0 +1,2405 @@
+openapi: 3.0.3
+info:
+  title: Jarvis Platform API - v1.7.1 Studio UX & Pricing CRUD
+  version: 1.7.2
+  description: Jarvis Platform API Contract v1.7.1. Adds Agent Studio profile editor
+    support and editable Pricing Packages CRUD in sandbox mode.
+servers:
+- url: /api/v1
+security:
+- bearerAuth: []
+paths:
+  /auth/email-code/send:
+    post:
+      tags:
+      - Auth
+      summary: Send registration email verification code
+      description: V1 only supports REGISTER purpose. Verification code is stored
+        in Redis with a short TTL and is not persisted in MySQL.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailCodeRequest'
+      responses:
+        '200':
+          description: Email code sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendEmailCodeResponse'
+        '429':
+          description: Rate limited
+  /auth/register:
+    post:
+      tags:
+      - Auth
+      summary: Register user with email verification code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+      description: Creates a USER account after verifying a short-lived email code
+        stored in Redis. V1 never creates admin accounts through registration.
+  /auth/login:
+    post:
+      summary: Admin/User sandbox login
+      tags:
+      - Auth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /auth/refresh:
+    post:
+      tags:
+      - Auth
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+                  requestId:
+                    type: string
+  /auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Logout user
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /me:
+    get:
+      summary: Current principal
+      tags:
+      - Auth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /agents:
+    get:
+      tags:
+      - Agent
+      summary: List published agents
+      parameters:
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Agent list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AgentPublicSummary'
+                  pageInfo:
+                    $ref: '#/components/schemas/PageInfo'
+                  requestId:
+                    type: string
+  /agents/{slug}:
+    get:
+      tags:
+      - Agent
+      summary: Get public agent detail
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Agent detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AgentPublicDetail'
+                  requestId:
+                    type: string
+  /agent-sessions:
+    post:
+      tags:
+      - AgentSession
+      summary: Open or create an agent session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - agentSlug
+              properties:
+                agentSlug:
+                  type: string
+      responses:
+        '200':
+          description: Agent session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AgentSession'
+                  requestId:
+                    type: string
+  /agent-sessions/current:
+    get:
+      tags:
+      - AgentSession
+      summary: Get current agent session
+      responses:
+        '200':
+          description: Current agent session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    nullable: true
+                    allOf:
+                    - $ref: '#/components/schemas/AgentSession'
+                  requestId:
+                    type: string
+  /agent-sessions/{sessionId}:
+    get:
+      tags:
+      - AgentSession
+      summary: Get agent session detail
+      parameters:
+      - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Agent session detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AgentSession'
+                  requestId:
+                    type: string
+  /agent-sessions/{sessionId}/messages:
+    get:
+      tags:
+      - Message
+      summary: List messages in session
+      parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      - name: direction
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - before
+          - after
+          default: before
+      responses:
+        '200':
+          description: Message list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  pageInfo:
+                    $ref: '#/components/schemas/PageInfo'
+                  requestId:
+                    type: string
+  /agent-sessions/{sessionId}/archive:
+    patch:
+      tags:
+      - AgentSession
+      summary: Archive session
+      parameters:
+      - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /chat:
+    post:
+      tags:
+      - Runtime
+      summary: Send text message and stream response with SSE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+      description: 'V1.6: Mock API enabled by default.'
+  /voice:
+    post:
+      tags:
+      - Runtime
+      summary: Upload voice from device
+      security:
+      - deviceAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - audio
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                agentSessionId:
+                  type: string
+                format:
+                  type: string
+                sampleRate:
+                  type: integer
+      responses:
+        '200':
+          description: Runtime voice result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeVoiceResponse'
+      description: 'V1.6: Mock API enabled by default.'
+  /runtime/events:
+    post:
+      tags:
+      - Runtime
+      summary: Submit runtime event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeEventRequest'
+      responses:
+        '200':
+          description: Runtime event accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      runtimeEventId:
+                        type: string
+                      intent:
+                        type: string
+                      status:
+                        type: string
+                  requestId:
+                    type: string
+  /devices/pairing-code:
+    post:
+      tags:
+      - Device
+      summary: Request device pairing code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevicePairingCodeRequest'
+      responses:
+        '200':
+          description: Pairing code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      pairingCode:
+                        type: string
+                      qrPayload:
+                        type: string
+                      expiresAt:
+                        type: string
+                        format: date-time
+                  requestId:
+                    type: string
+  /devices/bind:
+    post:
+      tags:
+      - Device
+      summary: Bind device to current user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - pairingCode
+              properties:
+                pairingCode:
+                  type: string
+                displayName:
+                  type: string
+      responses:
+        '200':
+          description: Device bound
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DeviceBindResult'
+                  requestId:
+                    type: string
+  /devices/connect:
+    post:
+      tags:
+      - Device
+      summary: Device connects on startup
+      security:
+      - deviceAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceConnectRequest'
+      responses:
+        '200':
+          description: Device connected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceConnectResponse'
+  /devices/heartbeat:
+    post:
+      tags:
+      - Device
+      summary: Device heartbeat
+      security:
+      - deviceAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceHeartbeatRequest'
+      responses:
+        '200':
+          description: OK
+  /devices/telemetry:
+    post:
+      tags:
+      - Device
+      summary: Device telemetry
+      security:
+      - deviceAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceTelemetryRequest'
+      responses:
+        '200':
+          description: OK
+  /devices:
+    get:
+      tags:
+      - Device
+      summary: List user devices
+      responses:
+        '200':
+          description: Devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+                  requestId:
+                    type: string
+  /devices/{deviceId}:
+    get:
+      tags:
+      - Device
+      summary: Get device detail
+      parameters:
+      - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Device'
+                  requestId:
+                    type: string
+    patch:
+      tags:
+      - Device
+      summary: Update device display info
+      parameters:
+      - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags:
+      - Device
+      summary: Unbind device
+      parameters:
+      - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Unbound
+  /robot/actions:
+    post:
+      tags:
+      - Robot
+      summary: Create robot action command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotActionRequest'
+      responses:
+        '200':
+          description: Command queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RobotCommand'
+                  requestId:
+                    type: string
+  /robot/actions/{commandId}:
+    get:
+      tags:
+      - Robot
+      summary: Get robot command status
+      parameters:
+      - name: commandId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Command
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RobotCommand'
+                  requestId:
+                    type: string
+  /robot/actions/{commandId}/cancel:
+    post:
+      tags:
+      - Robot
+      summary: Cancel robot command
+      parameters:
+      - name: commandId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Cancelled
+  /robot/emergency-stop:
+    post:
+      tags:
+      - Robot
+      summary: Trigger emergency stop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - targetDeviceId
+              properties:
+                targetDeviceId:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Emergency stop triggered
+  /robot/emergency-stop/release:
+    post:
+      tags:
+      - Robot
+      summary: Release emergency stop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - targetDeviceId
+              - confirm
+              properties:
+                targetDeviceId:
+                  type: string
+                confirm:
+                  type: boolean
+      responses:
+        '200':
+          description: Emergency stop released
+  /studio/agents:
+    get:
+      summary: List Studio agents
+      tags:
+      - Studio Agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      summary: Create Studio agent draft
+      tags:
+      - Studio Agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/agents/{agentId}:
+    get:
+      tags:
+      - Studio
+      summary: Get studio agent
+      parameters:
+      - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Studio agent
+  /studio/agents/{agentId}/draft:
+    patch:
+      tags:
+      - Studio
+      summary: Update agent draft manifest
+      parameters:
+      - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - manifest
+              properties:
+                manifest:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Draft saved
+  /studio/agents/{agentId}/publish:
+    post:
+      tags:
+      - Studio
+      summary: Publish agent version
+      parameters:
+      - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - version
+              properties:
+                version:
+                  type: string
+                releaseNote:
+                  type: string
+      responses:
+        '200':
+          description: Published
+  /studio/agents/{agentId}/versions:
+    get:
+      tags:
+      - Studio
+      summary: List agent versions
+      parameters:
+      - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Versions
+  /studio/agents/{agentId}/rollback:
+    post:
+      tags:
+      - Studio
+      summary: Rollback agent version
+      parameters:
+      - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - versionId
+              properties:
+                versionId:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Rolled back
+  /studio/model-profiles:
+    get:
+      summary: List Model Profiles
+      tags:
+      - Model Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      summary: Create Model Profile
+      tags:
+      - Model Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/model-profiles/{id}:
+    get:
+      summary: Get Model Profile
+      tags:
+      - Model Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    patch:
+      summary: Update Model Profile
+      tags:
+      - Model Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/model-profiles/{id}/test:
+    post:
+      summary: Test Model Profile
+      tags:
+      - Model Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/model-profiles/{id}/set-default:
+    post:
+      summary: Set default Model Profile
+      tags:
+      - Model Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/voice-profiles:
+    get:
+      summary: List Voice Profiles
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    post:
+      summary: Create Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/voice-profiles/{id}:
+    get:
+      summary: Get Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    patch:
+      summary: Update Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/voice-profiles/{id}/test:
+    post:
+      summary: Test Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/voice-profiles/{id}/set-default:
+    post:
+      summary: Set default Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /studio/voice-profiles/{id}/publish:
+    post:
+      summary: Publish Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/voice-profiles/{id}/disable:
+    post:
+      summary: Disable Voice Profile
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/voice-profiles/{id}/preview-audio:
+    post:
+      summary: Reserved Voice Profile preview audio upload
+      description: Reserved for future real upload. v1.7.2 Studio Web uses browser-only local audio preview and does not call this endpoint.
+      tags:
+      - Voice Profiles
+      responses:
+        '200':
+          description: Reserved endpoint response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/voice-profiles/sync-elevenlabs:
+    post:
+      summary: Sync ElevenLabs voices
+      tags:
+      - Studio Resource Library
+      responses:
+        '200':
+          description: Sync result
+  /me/usage:
+    get:
+      summary: Get current user Agent Tokens usage summary
+      tags:
+      - Usage
+      responses:
+        '200':
+          description: Current user usage summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUsageSummary'
+  /me/usage-records:
+    get:
+      summary: Get current user usage records
+      tags:
+      - Usage
+      responses:
+        '200':
+          description: OK
+  /studio/users/{id}/usage:
+    get:
+      summary: Get user usage summary
+      tags:
+      - Usage
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/users/{id}/usage-records:
+    get:
+      summary: List user usage records
+      tags:
+      - Usage
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/users/{id}/balance/adjust:
+    post:
+      summary: Adjust user token balance
+      tags:
+      - Studio
+      - Usage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+      deprecated: true
+      description: Deprecated from v1.5.10. Use POST /studio/users/{id}/tokens/adjust
+        instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAdjustAgentTokensRequest'
+  /runtime/audio/temp/{audioId}:
+    get:
+      tags:
+      - Runtime
+      summary: Get temporary runtime audio file
+      parameters:
+      - name: audioId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Temporary audio binary
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: private, max-age=600
+        '404':
+          description: Audio expired or not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billing/pricing:
+    get:
+      summary: Get Agent Tokens pricing
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /billing/packages:
+    get:
+      summary: Get recharge packages
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /billing/recharge-orders:
+    post:
+      summary: Create recharge order
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+    get:
+      summary: List current user visible recharge orders
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /billing/recharge-orders/{id}:
+    get:
+      summary: Get recharge order
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /billing/recharge-orders/{id}/mock-pay:
+    post:
+      summary: Mock pay recharge order
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /billing/transactions:
+    get:
+      summary: List current user token transactions
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/users/{id}/recharge-orders:
+    get:
+      summary: List user recharge orders
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/users/{id}/transactions:
+    get:
+      summary: List user token transactions
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /billing/payment/webhook/wechat:
+    post:
+      tags:
+      - Billing
+      summary: Reserved WeChat payment webhook
+      description: Reserved for future real payment integration. V1 returns not implemented.
+      responses:
+        '501':
+          description: Not implemented
+  /billing/payment/webhook/alipay:
+    post:
+      tags:
+      - Billing
+      summary: Reserved Alipay payment webhook
+      description: Reserved for future real payment integration. V1 returns not implemented.
+      responses:
+        '501':
+          description: Not implemented
+  /studio/users/{id}/tokens/adjust:
+    post:
+      summary: Admin manual token adjustment
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /mock/status:
+    get:
+      summary: Mock API runtime status
+      tags:
+      - System
+      responses:
+        '200':
+          description: Mock runtime status
+  /studio/users:
+    get:
+      summary: List users for Admin Studio
+      tags:
+      - Studio Users
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /health:
+    get:
+      summary: Sandbox health check
+      tags:
+      - System
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /ready:
+    get:
+      summary: Sandbox readiness check
+      tags:
+      - System
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/health:
+    get:
+      summary: Jarvis Studio backend health check
+      tags:
+      - System
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/dashboard:
+    get:
+      summary: Admin Studio dashboard metrics
+      tags:
+      - Studio
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/users/{id}:
+    get:
+      summary: Get user detail
+      tags:
+      - Studio Users
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/agents/{id}:
+    get:
+      summary: Get Studio agent
+      tags:
+      - Studio Agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+    patch:
+      summary: Update Studio agent
+      tags:
+      - Studio Agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /studio/agents/{id}/publish:
+    post:
+      summary: Publish Studio agent
+      tags:
+      - Studio Agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/agents/{id}/disable:
+    post:
+      summary: Disable Studio agent
+      tags:
+      - Studio Agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/recharge-orders:
+    get:
+      summary: List all recharge orders for Admin Studio
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/recharge-orders/{id}:
+    get:
+      summary: Get recharge order for Admin Studio
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/token-transactions:
+    get:
+      summary: List token transactions for Admin Studio
+      tags:
+      - Billing
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/usage-records:
+    get:
+      summary: List usage records for Admin Studio
+      tags:
+      - Usage
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /studio/billing/packages:
+    get:
+      summary: List editable recharge packages for Admin Studio
+      tags:
+      - Studio Billing
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create recharge package in sandbox
+      tags:
+      - Studio Billing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                amountRmb:
+                  type: number
+                agentTokens:
+                  type: integer
+                status:
+                  type: string
+                sortOrder:
+                  type: integer
+              required:
+              - name
+              - amountRmb
+              - agentTokens
+      responses:
+        '200':
+          description: OK
+  /studio/billing/packages/{id}:
+    patch:
+      summary: Update recharge package in sandbox
+      tags:
+      - Studio Billing
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete recharge package in sandbox
+      tags:
+      - Studio Billing
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+  /studio/billing/packages/{id}/discount:
+    post:
+      summary: Apply quick bonus-token discount to a recharge package
+      tags:
+      - Studio Billing
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bonusPercent:
+                  type: number
+                reset:
+                  type: boolean
+      responses:
+        '200':
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    deviceAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Use `Device <device_token>`.
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        type: string
+    AgentId:
+      name: agentId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+      - email
+      - verificationCode
+      - password
+      - nickname
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        nickname:
+          type: string
+        verificationCode:
+          type: string
+          minLength: 6
+          maxLength: 6
+          description: Short-lived email verification code stored in Redis.
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+        requestId:
+          type: string
+    SuccessResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            success:
+              type: boolean
+        requestId:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum:
+          - USER
+          - ADMIN
+        currentSessionId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+    AgentPublicSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+          - PUBLISHED
+        version:
+          type: string
+        capabilities:
+          $ref: '#/components/schemas/AgentCapabilities'
+    AgentPublicDetail:
+      allOf:
+      - $ref: '#/components/schemas/AgentPublicSummary'
+      - type: object
+        properties:
+          social:
+            $ref: '#/components/schemas/AgentSocialGallery'
+          voice:
+            type: object
+            additionalProperties: true
+    AgentSocialGallery:
+      type: object
+      properties:
+        galleryImages:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              alt:
+                type: string
+                nullable: true
+              sortOrder:
+                type: integer
+                nullable: true
+        galleryVideos:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              posterUrl:
+                type: string
+                nullable: true
+              title:
+                type: string
+                nullable: true
+              sortOrder:
+                type: integer
+                nullable: true
+    AgentCapabilities:
+      type: object
+      properties:
+        chat:
+          type: boolean
+        voice:
+          type: boolean
+        tools:
+          type: array
+          items:
+            type: string
+    AgentSession:
+      type: object
+      properties:
+        id:
+          type: string
+        agent:
+          $ref: '#/components/schemas/AgentPublicSummary'
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ARCHIVED
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+          enum:
+          - USER
+          - ASSISTANT
+          - SYSTEM
+          - TOOL
+          - ROBOT
+        content:
+          type: string
+        contentType:
+          type: string
+          enum:
+          - TEXT
+          - VOICE_TRANSCRIPT
+          - ROBOT_ACTION
+          - SYSTEM_EVENT
+          - ERROR
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    PageInfo:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+        hasNextPage:
+          type: boolean
+    ChatRequest:
+      type: object
+      required:
+      - agentSessionId
+      - content
+      properties:
+        agentSessionId:
+          type: string
+        content:
+          type: string
+        clientMessageId:
+          type: string
+    RuntimeVoiceResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            runtimeEventId:
+              type: string
+            intent:
+              type: string
+            transcript:
+              type: string
+            messageId:
+              type: string
+            command:
+              $ref: '#/components/schemas/RobotCommand'
+            reply:
+              type: object
+              properties:
+                text:
+                  type: string
+                audioUrl:
+                  type: string
+            userMessage:
+              $ref: '#/components/schemas/Message'
+            assistantMessage:
+              $ref: '#/components/schemas/Message'
+            audio:
+              $ref: '#/components/schemas/RuntimeAudioInfo'
+        requestId:
+          type: string
+    RuntimeEventRequest:
+      type: object
+      required:
+      - source
+      - type
+      - payload
+      properties:
+        source:
+          type: string
+        type:
+          type: string
+        agentSessionId:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+    DevicePairingCodeRequest:
+      type: object
+      required:
+      - deviceSn
+      - deviceName
+      - deviceType
+      properties:
+        deviceSn:
+          type: string
+        deviceName:
+          type: string
+        deviceType:
+          type: string
+        capabilities:
+          type: object
+          additionalProperties: true
+    DeviceBindResult:
+      type: object
+      properties:
+        deviceId:
+          type: string
+        deviceSn:
+          type: string
+        displayName:
+          type: string
+        deviceToken:
+          type: string
+        status:
+          type: string
+    DeviceConnectRequest:
+      type: object
+      required:
+      - deviceSn
+      - clientVersion
+      properties:
+        deviceSn:
+          type: string
+        clientVersion:
+          type: string
+        capabilities:
+          type: object
+          additionalProperties: true
+    DeviceConnectResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            deviceId:
+              type: string
+            status:
+              type: string
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                nickname:
+                  type: string
+            currentSession:
+              $ref: '#/components/schemas/AgentSession'
+            websocketUrl:
+              type: string
+            serverTime:
+              type: string
+              format: date-time
+        requestId:
+          type: string
+    DeviceHeartbeatRequest:
+      type: object
+      required:
+      - deviceId
+      - status
+      properties:
+        deviceId:
+          type: string
+        status:
+          type: string
+        battery:
+          type: object
+          additionalProperties: true
+        network:
+          type: object
+          additionalProperties: true
+    DeviceTelemetryRequest:
+      type: object
+      required:
+      - deviceId
+      - telemetry
+      properties:
+        deviceId:
+          type: string
+        telemetry:
+          type: object
+          additionalProperties: true
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        deviceSn:
+          type: string
+        displayName:
+          type: string
+        deviceType:
+          type: string
+        status:
+          type: string
+        capabilities:
+          type: object
+          additionalProperties: true
+        lastTelemetry:
+          type: object
+          additionalProperties: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+    RobotActionRequest:
+      type: object
+      required:
+      - targetDeviceId
+      - type
+      - payload
+      properties:
+        agentSessionId:
+          type: string
+        targetDeviceId:
+          type: string
+        type:
+          type: string
+          enum:
+          - MOVE
+          - TURN
+          - STOP
+          - FOLLOW
+          - DOCK
+          - NAVIGATE
+        payload:
+          type: object
+          additionalProperties: true
+        safety:
+          type: object
+          additionalProperties: true
+        timeoutMs:
+          type: integer
+    RobotCommand:
+      type: object
+      properties:
+        commandId:
+          type: string
+        targetDeviceId:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum:
+          - QUEUED
+          - SENT
+          - ACCEPTED
+          - RUNNING
+          - DONE
+          - FAILED
+          - CANCELLED
+          - REJECTED
+          - TIMEOUT
+        payload:
+          type: object
+          additionalProperties: true
+        result:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+        requestId:
+          type: string
+    RuntimeAudioInfo:
+      type: object
+      properties:
+        messageId:
+          type: string
+        tempUrl:
+          type: string
+        mimeType:
+          type: string
+          example: audio/mpeg
+        storagePolicy:
+          type: string
+          enum:
+          - CLIENT_PERSISTENT_INDEXEDDB
+          - PLAY_AND_DISCARD
+          - CLIENT_CACHE_OPTIONAL
+        expiresIn:
+          type: integer
+          example: 600
+    SendEmailCodeRequest:
+      type: object
+      required:
+      - email
+      - purpose
+      properties:
+        email:
+          type: string
+          format: email
+        purpose:
+          type: string
+          enum:
+          - REGISTER
+    SendEmailCodeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            success:
+              type: boolean
+            expiresIn:
+              type: integer
+              example: 300
+            cooldownSeconds:
+              type: integer
+              example: 60
+        requestId:
+          type: string
+    UserUsageSummary:
+      type: object
+      properties:
+        balanceAgentTokens:
+          type: integer
+          format: int64
+        usedAgentTokens:
+          type: integer
+          format: int64
+        billingMode:
+          type: string
+          enum:
+          - TRACK_ONLY
+          - ENFORCE
+        minimumTextBalance:
+          type: integer
+          example: 100
+        minimumVoiceBalance:
+          type: integer
+          example: 1000
+        canUseTextChat:
+          type: boolean
+        canUseVoiceChat:
+          type: boolean
+    BillingPricingResponse:
+      type: object
+      properties:
+        currencyName:
+          type: string
+          example: Agent Tokens
+        agentTokensPerRmb:
+          type: integer
+          example: 1000
+        billingMultiplier:
+          type: number
+          format: float
+          example: 1.5
+        minimumTextBalance:
+          type: integer
+          example: 100
+        minimumVoiceBalance:
+          type: integer
+          example: 1000
+        voiceReplyMaxChars:
+          type: integer
+          example: 200
+        rates:
+          type: object
+          properties:
+            deepseek:
+              type: object
+              properties:
+                inputCacheHitPerMillionTokensAgentTokens:
+                  type: number
+                  example: 30
+                inputCacheMissPerMillionTokensAgentTokens:
+                  type: number
+                  example: 1500
+                outputPerMillionTokensAgentTokens:
+                  type: number
+                  example: 3000
+            elevenlabs:
+              type: object
+              properties:
+                ttsPerCharacterAgentTokens:
+                  type: number
+                  example: 0.525
+                ttsPer100CharactersAgentTokens:
+                  type: number
+                  example: 52.5
+        examples:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    BillingPackagesResponse:
+      type: object
+      properties:
+        packages:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: pkg_5000
+              amountRmb:
+                type: integer
+                example: 5
+              agentTokens:
+                type: integer
+                example: 5000
+    CreateRechargeOrderRequest:
+      type: object
+      required:
+      - packageId
+      properties:
+        packageId:
+          type: string
+          example: pkg_5000
+    RechargeOrder:
+      type: object
+      properties:
+        id:
+          type: string
+        orderNo:
+          type: string
+          example: RO202606280001
+        amountRmb:
+          type: number
+          example: 5
+        currency:
+          type: string
+          example: CNY
+        agentTokens:
+          type: integer
+          format: int64
+          example: 5000
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PAID
+          - EXPIRED
+        paymentProvider:
+          type: string
+          enum:
+          - MOCK
+          - WECHAT
+          - ALIPAY
+        paymentMethod:
+          type: string
+          enum:
+          - MOCK
+          - WECHAT_QR
+          - ALIPAY_QR
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+    RechargeOrderResponse:
+      type: object
+      properties:
+        order:
+          $ref: '#/components/schemas/RechargeOrder'
+    RechargeOrderListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RechargeOrder'
+        nextCursor:
+          type: string
+          nullable: true
+    AgentTokenTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - RECHARGE
+          - USAGE
+          - ADMIN_RECHARGE
+          - ADMIN_ADJUST
+          - REFUND
+          - GIFT
+        direction:
+          type: string
+          enum:
+          - CREDIT
+          - DEBIT
+        amountTokens:
+          type: integer
+          format: int64
+        balanceBefore:
+          type: integer
+          format: int64
+        balanceAfter:
+          type: integer
+          format: int64
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        operatorAdminId:
+          type: string
+          nullable: true
+    RechargeOrderPayResponse:
+      type: object
+      properties:
+        order:
+          $ref: '#/components/schemas/RechargeOrder'
+        balanceAgentTokens:
+          type: integer
+          format: int64
+        transaction:
+          $ref: '#/components/schemas/AgentTokenTransaction'
+    AgentTokenTransactionListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentTokenTransaction'
+        nextCursor:
+          type: string
+          nullable: true
+    AdminAdjustAgentTokensRequest:
+      type: object
+      required:
+      - amountAgentTokens
+      - reason
+      properties:
+        amountAgentTokens:
+          type: integer
+          minimum: 1
+          example: 5000
+        reason:
+          type: string
+          minLength: 2
+          maxLength: 255
+          example: 线下收款充值
+    AdminAdjustAgentTokensResponse:
+      type: object
+      required:
+      - userId
+      - balanceBefore
+      - amountAgentTokens
+      - balanceAfter
+      - transactionId
+      properties:
+        userId:
+          type: string
+        balanceBefore:
+          type: integer
+          format: int64
+        amountAgentTokens:
+          type: integer
+          format: int64
+        balanceAfter:
+          type: integer
+          format: int64
+        transactionId:
+          type: string
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data: {}
+        message:
+          type: string
+        meta:
+          type: object
+        error:
+          type: object
+    RechargePackage:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        amountRmb:
+          type: number
+        baseTokens:
+          type: integer
+        agentTokens:
+          type: integer
+        bonusTokens:
+          type: integer
+        discountPercent:
+          type: number
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - DISABLED
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string

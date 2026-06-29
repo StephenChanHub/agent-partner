@@ -1,0 +1,82 @@
+@baseUrl = http://localhost:3000/api
+@adminEmail = admin@jarvis.local
+@adminPassword = admin123456
+
+### Health
+GET {{baseUrl}}/health
+
+### Admin Login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Me
+GET {{baseUrl}}/me
+Authorization: Bearer mock_access_token_admin
+
+### Studio Dashboard
+GET {{baseUrl}}/studio/dashboard
+Authorization: Bearer mock_access_token_admin
+
+### Users
+GET {{baseUrl}}/studio/users?page=1&pageSize=20
+Authorization: Bearer mock_access_token_admin
+
+### User Detail
+GET {{baseUrl}}/studio/users/user_mock_001
+Authorization: Bearer mock_access_token_admin
+
+### Manual Token Adjustment
+POST {{baseUrl}}/studio/users/user_mock_001/tokens/adjust
+Authorization: Bearer mock_access_token_admin
+Content-Type: application/json
+
+{
+  "amountAgentTokens": 5000,
+  "reason": "线下收款充值"
+}
+
+### Agents
+GET {{baseUrl}}/studio/agents
+Authorization: Bearer mock_access_token_admin
+
+### Model Profiles
+GET {{baseUrl}}/studio/model-profiles
+Authorization: Bearer mock_access_token_admin
+
+### Voice Profiles
+GET {{baseUrl}}/studio/voice-profiles
+Authorization: Bearer mock_access_token_admin
+
+### Billing Pricing
+GET {{baseUrl}}/billing/pricing
+Authorization: Bearer mock_access_token_admin
+
+### Recharge Orders
+GET {{baseUrl}}/studio/recharge-orders
+Authorization: Bearer mock_access_token_admin
+
+### Token Transactions
+GET {{baseUrl}}/studio/token-transactions
+Authorization: Bearer mock_access_token_admin
+
+### Usage Records
+GET {{baseUrl}}/studio/usage-records
+Authorization: Bearer mock_access_token_admin
+
+### Text Chat Mock
+POST {{baseUrl}}/chat
+Content-Type: application/json
+Authorization: Bearer mock_access_token_admin
+
+{
+  "agentSlug": "jarvis",
+  "sessionId": "session_mock_jarvis",
+  "message": "你好，Jarvis",
+  "client": "studio"
+}

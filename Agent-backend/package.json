@@ -1,0 +1,52 @@
+{
+  "name": "agent-backend",
+  "version": "1.7.2",
+  "private": true,
+  "description": "Agent Backend / Jarvis Core Sandbox - v1.7.2 Voice Preview & Agent Voice Selection",
+  "scripts": {
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:sandbox": "cross-env NODE_ENV=sandbox LLM_PROVIDER=mock TTS_PROVIDER=mock STT_PROVIDER=mock PAYMENT_PROVIDER=mock EMAIL_PROVIDER=mock CACHE_DRIVER=memory DATABASE_MODE=mock nest start --watch",
+    "build": "nest build",
+    "check:sandbox": "npm run build",
+    "smoke:sandbox": "bash scripts/sandbox-smoke-test.sh",
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/platform-socket.io": "^11.1.6",
+    "@nestjs/websockets": "^11.1.6",
+    "@prisma/client": "^6.14.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "ioredis": "^5.7.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.10",
+    "@nestjs/schematics": "^11.0.7",
+    "@nestjs/testing": "^11.1.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.15.21",
+    "@types/passport-jwt": "^4.0.1",
+    "cross-env": "^7.0.3",
+    "jest": "^30.0.5",
+    "prisma": "^6.14.0",
+    "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.3"
+  }
+}
