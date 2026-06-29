@@ -3,6 +3,7 @@ import { Alert, Card, Col, Row, Skeleton, Statistic, Tag } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { studioApi } from '../api/studio';
 import { PageHeader } from '../components/PageHeader';
+import { ProductionReadinessPanel } from '../components/ProductionReadinessPanel';
 import { fmtRmb, fmtTokens } from '../utils/format';
 
 export function DashboardPage() {
@@ -45,6 +46,7 @@ export function DashboardPage() {
           </Card>
         </Col>
       </Row>
+      <ProductionReadinessPanel />
       <Card className="ios-card section-card" title="Core Runtime">
         <div className="runtime-line">
           <span>Provider Mode</span>

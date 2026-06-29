@@ -14,6 +14,7 @@ import { RechargeOrdersPage } from '../pages/billing/RechargeOrdersPage';
 import { TokenTransactionsPage } from '../pages/billing/TokenTransactionsPage';
 import { UsageRecordsPage } from '../pages/billing/UsageRecordsPage';
 import { PricingPage } from '../pages/billing/PricingPage';
+import { SystemReadinessPage } from '../pages/system/SystemReadinessPage';
 
 export function AppRouter() {
   return (
@@ -42,6 +43,7 @@ export function AppRouter() {
         <Route path="billing/token-transactions" element={<TokenTransactionsPage />} />
         <Route path="billing/usage-records" element={<UsageRecordsPage />} />
         <Route path="billing/pricing" element={<PricingPage />} />
+        <Route path="system/readiness" element={<SystemReadinessPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

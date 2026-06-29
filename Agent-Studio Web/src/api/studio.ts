@@ -41,7 +41,7 @@ export const studioApi = {
   disableAgent: async (id: string) => postData<AgentRecord>(`/studio/agents/${id}/disable`),
   deleteAgent: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/agents/${id}`),
 
-  modelProfiles: async () => getPage<ModelProfile>('/studio/model-profiles'),
+  modelProfiles: async (params?: Record<string, unknown>) => getPage<ModelProfile>('/studio/model-profiles', params),
   createModelProfile: async (payload: unknown) => postData<ModelProfile>('/studio/model-profiles', payload),
   updateModelProfile: async (id: string, payload: unknown) => patchData<ModelProfile>(`/studio/model-profiles/${id}`, payload),
   testModelProfile: async (id: string, prompt: string) => postData(`/studio/model-profiles/${id}/test`, { prompt }),

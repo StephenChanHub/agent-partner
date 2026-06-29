@@ -287,3 +287,12 @@ Pricing 套餐支持 +10% / +20% / +50% 赠送 Tokens 快捷操作
 - Voice editor supports local audio file preview via browser object URL only.
 - Agent editor selects published/active Voice Profiles and shows selected Voice preview audio.
 - Reserved backend endpoint exists for future preview audio upload but is not used in sandbox.
+
+## v1.7.4 Studio Professional Interaction & Production-Ready UX
+
+- Upgrade Jarvis Studio from sandbox-only pages to a professional admin console baseline.
+- Add environment awareness, Core readiness banner, production readiness panel and system readiness page.
+- Standardize list interactions with DataToolbar: search, status filter, refresh and row selection.
+- Add top-level ErrorBoundary.
+- Add X-Request-ID, X-Client-App and X-Client-Env headers to every request.
+- Keep real DeepSeek, ElevenLabs, payment, upload, audit persistence and RBAC as reserved production integrations.

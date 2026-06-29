@@ -1,9 +1,11 @@
 import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined, SoundOutlined } from '@ant-design/icons';
 import { App, Button, Card, Space, Table, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { studioApi } from '../../api/studio';
 import { API_BASE_URL } from '../../api/http';
+import { DataToolbar } from '../../components/DataToolbar';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusTag } from '../../components/StatusTag';
 import type { VoiceProfile } from '../../types/api';
@@ -19,7 +21,9 @@ export function VoiceProfilesPage() {
   const { message, modal } = App.useApp();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const profiles = useQuery({ queryKey: ['voice-profiles'], queryFn: () => studioApi.voiceProfiles() });
+  const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState('ALL');
+  const profiles = useQuery({ queryKey: ['voice-profiles', keyword, status], queryFn: () => studioApi.voiceProfiles({ keyword, status: status === 'ALL' ? undefined : status }) });
 
   const test = useMutation({
     mutationFn: (id: string) => studioApi.testVoiceProfile(id, '你好，我是 Jarvis。'),
@@ -60,15 +64,25 @@ export function VoiceProfilesPage() {
     <div>
       <PageHeader
         title="Voice Profiles"
-        description="Voice Profile 负责 ElevenLabs 配置和试听样音；Agent 只引用已发布 Voice。删除操作需要警告与再次确认。"
+        description="Voice Profile 负责 ElevenLabs 配置和试听样音；Agent 只引用已发布 Voice。正式上线时只替换上传/Provider 实现。"
+      />
+      <DataToolbar
+        searchPlaceholder="声音名称 / Voice ID"
+        onSearch={setKeyword}
+        statusOptions={[{ label: '全部', value: 'ALL' }, { label: '已发布', value: 'PUBLISHED' }, { label: '启用', value: 'ACTIVE' }, { label: '禁用', value: 'DISABLED' }]}
+        statusValue={status}
+        onStatusChange={setStatus}
+        onRefresh={() => profiles.refetch()}
         actions={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/voice-profiles/new')}>新建 Voice</Button>}
       />
 
       <Card className="ios-card">
         <Table<VoiceProfile>
           rowKey="id"
-          loading={profiles.isLoading}
+          loading={profiles.isLoading || profiles.isFetching}
           dataSource={profiles.data?.items ?? []}
+          rowSelection={{ preserveSelectedRowKeys: true }}
+          scroll={{ x: 1200 }}
           columns={[
             {
               title: '声音',

@@ -272,3 +272,9 @@ Added professional Voice Profile preview audio ownership model:
 - `05-api/07-20-studio-safety-avatar-pricing-rules-api.md`
 - `09-frontend/12-08-studio-safety-avatar-pricing-rules.md`
 - `10-engineering/11-32-studio-safety-avatar-pricing-rules-implementation.md`
+
+## v1.7.4 Update
+
+- Added professional admin interactions and production-ready UX baseline.
+- Added EnvironmentBanner, DataToolbar, ProductionReadinessPanel, ErrorBoundary and SystemReadinessPage.
+- Added request trace headers and environment-safe configuration.

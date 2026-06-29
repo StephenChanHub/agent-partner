@@ -1,8 +1,8 @@
 {
   "name": "agent-backend",
-  "version": "1.7.3",
+  "version": "1.8.1",
   "private": true,
-  "description": "Agent Backend / Jarvis Core Sandbox - v1.7.3 Studio Safety, Avatar Policy & Pricing Rules CRUD",
+  "description": "Jarvis Agent Platform v1.8.1 - backend sandbox retained with git hygiene baseline.",
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",

@@ -202,3 +202,77 @@ body {
   color: var(--ios-secondary);
   font-size: 13px;
 }
+
+/* v1.7.4 professional interaction baseline */
+.environment-banner {
+  border-radius: 22px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(0,122,255,0.16);
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+.data-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--ios-border);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.68);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+.toolbar-search { width: 280px; }
+.sider-footer-note {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 18px;
+  background: rgba(13,33,165,0.06);
+  border: 1px solid rgba(13,33,165,0.12);
+  color: var(--ios-secondary);
+  font-size: 12px;
+}
+.sider-footer-note b { color: var(--ios-text); font-size: 13px; }
+.readiness-tile {
+  min-height: 154px;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(0,122,255,0.05);
+  border: 1px solid rgba(0,122,255,0.12);
+}
+.readiness-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: rgba(0,122,255,0.12);
+  color: var(--ios-blue);
+  flex: 0 0 auto;
+}
+.success-icon { color: #34c759; }
+.info-icon { color: #007aff; }
+.warning-icon { color: #ff9500; }
+.ant-segmented {
+  border-radius: 999px;
+  padding: 4px;
+  background: rgba(118,118,128,0.10);
+}
+.ant-table-wrapper .ant-table-row-selected > td { background: rgba(0,122,255,0.06) !important; }
+.ant-table-wrapper .ant-table-cell-fix-right { background: rgba(255,255,255,0.88) !important; }
+.ant-btn-primary.ant-btn-background-ghost { background: rgba(0,122,255,0.06); }
+
+@media (max-width: 760px) {
+  .data-toolbar { align-items: stretch; flex-direction: column; }
+  .toolbar-search { width: 100%; }
+}

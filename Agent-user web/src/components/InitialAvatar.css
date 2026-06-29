@@ -1,0 +1,42 @@
+/**
+ * Global avatar policy for user web:
+ * blue background #0D21A5 + white first character.
+ * Avatar image fields are reserved by API design, but not rendered in V1.8.1 home UI.
+ */
+.initial-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #0D21A5;
+  color: #ffffff;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  user-select: none;
+  box-shadow: 0 18px 40px rgba(13, 33, 165, 0.18);
+}
+
+.initial-avatar--sm {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+}
+
+.initial-avatar--md {
+  width: 56px;
+  height: 56px;
+  font-size: 24px;
+}
+
+.initial-avatar--lg {
+  width: 96px;
+  height: 96px;
+  font-size: 44px;
+}
+
+.initial-avatar--xl {
+  width: 116px;
+  height: 116px;
+  font-size: 56px;
+}

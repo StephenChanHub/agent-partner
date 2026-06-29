@@ -200,6 +200,25 @@ export type UsageRecord = {
   createdAt: string;
 };
 
+
+export type StudioReadinessItem = {
+  key: string;
+  title: string;
+  status: 'READY' | 'SANDBOX' | 'RESERVED' | 'BLOCKED';
+  description: string;
+  owner?: string;
+};
+
+export type StudioAuditEvent = {
+  id: string;
+  actorEmail: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string;
+  severity: 'INFO' | 'WARNING' | 'DANGER';
+  createdAt: string;
+};
+
 export type DashboardSummary = {
   users: { total: number; active: number };
   agents: { total: number; published: number; drafts: number };

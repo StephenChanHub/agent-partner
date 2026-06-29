@@ -1,5 +1,41 @@
-node_modules
-dist
-.env.local
+# dependencies
+node_modules/
+.pnpm-store/
+.npm/
+
+# build output
+dist/
+build/
+coverage/
+
+# local env
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
 .DS_Store
-*.local
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# cache / typecheck
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# generated local artifacts
+storybook-static/
+playwright-report/
+test-results/

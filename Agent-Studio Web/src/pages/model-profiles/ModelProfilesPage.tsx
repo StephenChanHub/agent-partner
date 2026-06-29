@@ -3,6 +3,7 @@ import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { studioApi } from '../../api/studio';
+import { DataToolbar } from '../../components/DataToolbar';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusTag } from '../../components/StatusTag';
 import type { ModelProfile } from '../../types/api';
@@ -11,7 +12,9 @@ import { confirmDangerTwice } from '../../utils/confirmDangerTwice';
 export function ModelProfilesPage() {
   const { message, modal } = App.useApp();
   const queryClient = useQueryClient();
-  const profiles = useQuery({ queryKey: ['model-profiles'], queryFn: studioApi.modelProfiles });
+  const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState('ALL');
+  const profiles = useQuery({ queryKey: ['model-profiles', keyword, status], queryFn: () => studioApi.modelProfiles({ keyword, status: status === 'ALL' ? undefined : status }) });
   const [editing, setEditing] = useState<ModelProfile | null>(null);
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
@@ -38,8 +41,17 @@ export function ModelProfilesPage() {
   });
 
   return <div>
-    <PageHeader title="Model Profiles" description="DeepSeek API Key 先预留；沙盒阶段使用 Mock LLM。删除操作需要警告与再次确认。" actions={<Button type="primary" onClick={() => openForm()}>新建模型配置</Button>} />
-    <Card className="ios-card"><Table rowKey="id" loading={profiles.isLoading} dataSource={profiles.data?.items ?? []} columns={[
+    <PageHeader title="Model Profiles" description="DeepSeek API Key 先预留；沙盒阶段使用 Mock LLM。列表交互按正式后台标准保留筛选、刷新、双重确认删除。" />
+    <DataToolbar
+      searchPlaceholder="模型名称 / Provider"
+      onSearch={setKeyword}
+      statusOptions={[{ label: '全部', value: 'ALL' }, { label: '启用', value: 'ACTIVE' }, { label: '禁用', value: 'DISABLED' }]}
+      statusValue={status}
+      onStatusChange={setStatus}
+      onRefresh={() => profiles.refetch()}
+      actions={<Button type="primary" onClick={() => openForm()}>新建模型配置</Button>}
+    />
+    <Card className="ios-card"><Table rowKey="id" loading={profiles.isLoading || profiles.isFetching} dataSource={profiles.data?.items ?? []} rowSelection={{ preserveSelectedRowKeys: true }} scroll={{ x: 1100 }} columns={[
       { title: '名称', dataIndex: 'displayName' },
       { title: 'Provider', dataIndex: 'provider', render: (v) => <StatusTag value={v} /> },
       { title: 'Model', dataIndex: 'modelName' },
