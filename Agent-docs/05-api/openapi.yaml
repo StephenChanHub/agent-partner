@@ -1,7 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Jarvis Platform API - v1.7.1 Studio UX & Pricing CRUD
-  version: 1.7.2
+  title: Jarvis Agent Platform API - v1.7.3 Studio Safety, Avatar Policy & Pricing
+    Rules CRUD
+  version: 1.7.3
   description: Jarvis Platform API Contract v1.7.1. Adds Agent Studio profile editor
     support and editable Pricing Packages CRUD in sandbox mode.
 servers:
@@ -856,6 +857,31 @@ paths:
           application/json:
             schema:
               type: object
+    delete:
+      summary: Delete Model Profile with Studio double-confirm UI
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: &id001
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: boolean
+                      id:
+                        type: string
   /studio/model-profiles/{id}/test:
     post:
       summary: Test Model Profile
@@ -944,6 +970,20 @@ paths:
           application/json:
             schema:
               type: object
+    delete:
+      summary: Delete Voice Profile with Studio double-confirm UI
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: *id001
   /studio/voice-profiles/{id}/test:
     post:
       summary: Test Voice Profile
@@ -974,7 +1014,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
-
   /studio/voice-profiles/{id}/publish:
     post:
       summary: Publish Voice Profile
@@ -1002,7 +1041,8 @@ paths:
   /studio/voice-profiles/{id}/preview-audio:
     post:
       summary: Reserved Voice Profile preview audio upload
-      description: Reserved for future real upload. v1.7.2 Studio Web uses browser-only local audio preview and does not call this endpoint.
+      description: Reserved for future real upload. v1.7.2 Studio Web uses browser-only
+        local audio preview and does not call this endpoint.
       tags:
       - Voice Profiles
       responses:
@@ -1376,6 +1416,20 @@ paths:
           application/json:
             schema:
               type: object
+    delete:
+      summary: Delete Agent with Studio double-confirm UI
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: *id001
   /studio/agents/{id}/publish:
     post:
       summary: Publish Studio agent
@@ -1542,6 +1596,96 @@ paths:
       responses:
         '200':
           description: OK
+  /studio/billing/pricing-rules:
+    get:
+      summary: List pricing rules for Studio CRUD
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items: &id002
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        key:
+                          type: string
+                        label:
+                          type: string
+                        group:
+                          type: string
+                        valueType:
+                          type: string
+                        value: {}
+                        unit:
+                          type: string
+                        description:
+                          type: string
+                        editable:
+                          type: boolean
+                        status:
+                          type: string
+                        sortOrder:
+                          type: integer
+                        createdAt:
+                          type: string
+                        updatedAt:
+                          type: string
+    post:
+      summary: Create pricing rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: *id002
+  /studio/billing/pricing-rules/{id}:
+    patch:
+      summary: Update pricing rule
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: *id002
+    delete:
+      summary: Delete pricing rule with Studio double-confirm UI
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: *id001
 components:
   securitySchemes:
     bearerAuth:

@@ -5,6 +5,7 @@ import { AdminTokenAdjustmentService } from './admin-token-adjustment.service';
 import { RechargeOrderService } from './recharge-order.service';
 import { AgentTokenTransactionService } from './agent-token-transaction.service';
 import { RechargePackageService } from './recharge-package.service';
+import { PricingRuleService } from './pricing-rule.service';
 
 @Controller('studio')
 export class StudioBillingController {
@@ -13,6 +14,7 @@ export class StudioBillingController {
     private readonly orders: RechargeOrderService,
     private readonly transactions: AgentTokenTransactionService,
     private readonly packages: RechargePackageService,
+    private readonly pricingRules: PricingRuleService,
   ) {}
 
   @Post('users/:id/tokens/adjust')
@@ -60,6 +62,28 @@ export class StudioBillingController {
   @Post('billing/packages/:id/discount')
   applyPackageDiscount(@Param('id') id: string, @Body() dto: any) {
     return ok(this.packages.applyDiscount(id, dto));
+  }
+
+
+
+  @Get('billing/pricing-rules')
+  listPricingRules() {
+    return ok(this.pricingRules.listRules());
+  }
+
+  @Post('billing/pricing-rules')
+  createPricingRule(@Body() dto: any) {
+    return ok(this.pricingRules.createRule(dto));
+  }
+
+  @Patch('billing/pricing-rules/:id')
+  updatePricingRule(@Param('id') id: string, @Body() dto: any) {
+    return ok(this.pricingRules.updateRule(id, dto));
+  }
+
+  @Delete('billing/pricing-rules/:id')
+  deletePricingRule(@Param('id') id: string) {
+    return ok(this.pricingRules.deleteRule(id));
   }
 
 }

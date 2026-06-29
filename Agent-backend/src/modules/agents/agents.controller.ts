@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ok, paginated } from '../../common/api-response';
 import { AgentsService } from './agents.service';
 
@@ -45,5 +45,10 @@ export class AgentsController {
   @Post('studio/agents/:id/disable')
   disable(@Param('id') id: string) {
     return ok(this.service.disable(id));
+  }
+
+  @Delete('studio/agents/:id')
+  delete(@Param('id') id: string) {
+    return ok(this.service.delete(id));
   }
 }

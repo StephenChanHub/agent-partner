@@ -62,4 +62,11 @@ export class ModelProfilesService {
     mockModelProfiles.forEach((profile) => { profile.isDefault = profile.id === id; });
     return this.get(id);
   }
+
+  delete(id: string) {
+    const index = mockModelProfiles.findIndex((profile) => profile.id === id);
+    if (index === -1) throw new NotFoundException('Model profile not found');
+    mockModelProfiles.splice(index, 1);
+    return { deleted: true, id };
+  }
 }

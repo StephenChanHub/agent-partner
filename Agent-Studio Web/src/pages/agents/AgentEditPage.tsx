@@ -1,10 +1,11 @@
 import { ArrowLeftOutlined, AudioOutlined, PictureOutlined, PlayCircleOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
-import { App, Avatar, Button, Card, Col, Form, Input, Row, Select, Space, Tabs, Typography } from 'antd';
+import { App, Button, Card, Col, Form, Input, Row, Select, Space, Tabs, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { studioApi } from '../../api/studio';
 import { API_BASE_URL } from '../../api/http';
+import { AvatarInitial } from '../../components/AvatarInitial';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusTag } from '../../components/StatusTag';
 import type { AgentRecord, VoiceProfile } from '../../types/api';
@@ -59,7 +60,6 @@ export function AgentEditPage({ mode }: Props) {
           name: '',
           slug: '',
           description: '',
-          avatarUrl: '',
           modelProfileId: 'model_profile_mock_default',
           voiceProfileId: 'voice_profile_mock_default',
           configPrompt: emptyAgentPrompt,
@@ -71,7 +71,6 @@ export function AgentEditPage({ mode }: Props) {
       name: record.manifest.identity.name,
       slug: record.slug,
       description: record.manifest.identity.description,
-      avatarUrl: record.manifest.identity.avatarUrl,
       modelProfileId: record.manifest.model?.profileId,
       voiceProfileId: record.manifest.voice?.profileId,
       configPrompt: record.manifest.config?.prompt,
@@ -95,7 +94,7 @@ export function AgentEditPage({ mode }: Props) {
             name: values.name,
             slug: values.slug,
             description: values.description ?? '',
-            avatarUrl: values.avatarUrl ?? '',
+            avatarUrl: current?.manifest.identity.avatarUrl ?? '',
           },
           social: current?.manifest.social ?? { galleryImages: [], galleryVideos: [] },
           model: { profileId: values.modelProfileId },
@@ -124,7 +123,6 @@ export function AgentEditPage({ mode }: Props) {
   const existingVideos = record?.manifest.social?.galleryVideos ?? [];
   const previewName = values.name || record?.manifest.identity.name || 'New Agent';
   const previewDescription = values.description || record?.manifest.identity.description || 'Agent profile preview';
-  const previewAvatar = values.avatarUrl || record?.manifest.identity.avatarUrl;
   const voiceItems = (voices.data?.items ?? []).filter(isPublishedVoice);
   const selectedVoice = voiceItems.find((voice) => voice.id === values.voiceProfileId) ?? voiceItems.find((voice) => voice.id === record?.manifest.voice?.profileId);
   const selectedVoiceAudioUrl = resolveAudioUrl(selectedVoice?.previewAudioUrl ?? selectedVoice?.previewUrl ?? record?.manifest.voice?.previewAudioUrl);
@@ -170,7 +168,7 @@ export function AgentEditPage({ mode }: Props) {
 
       <Card className="ios-card agent-profile-card" loading={agent.isLoading}>
         <div className="agent-profile-hero">
-          <Avatar size={112} src={previewAvatar} className="agent-profile-avatar">{previewName.slice(0, 1)}</Avatar>
+          <AvatarInitial size={112} name={previewName} large className="agent-profile-avatar" />
           <div className="agent-profile-main">
             <Space align="center" wrap>
               <Typography.Title level={2} className="agent-profile-name">{previewName}</Typography.Title>
@@ -197,7 +195,9 @@ export function AgentEditPage({ mode }: Props) {
               <Form.Item name="description" label="个人简介 / 描述"><Input.TextArea rows={3} placeholder="展示在 Agent 主页上的简介" /></Form.Item>
             </Col>
             <Col xs={24}>
-              <Form.Item name="avatarUrl" label="头像 URL"><Input placeholder="沙盒阶段可填写 URL；本地文件上传后续再做" /></Form.Item>
+              <div className="reserved-field-note">
+                头像图片字段与接口已预留，但 V1.7.3 管理端不开放头像 URL / 上传入口；头像统一使用蓝底白色首字符。
+              </div>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item name="modelProfileId" label="Model Profile" rules={[{ required: true }]}><Select options={(models.data?.items ?? []).map((m) => ({ label: m.displayName, value: m.id }))} /></Form.Item>

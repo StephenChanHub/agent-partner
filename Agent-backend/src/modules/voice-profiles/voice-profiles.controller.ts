@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ok, paginated } from '../../common/api-response';
 import { VoiceProfilesService } from './voice-profiles.service';
 import { CreateVoiceProfileDto } from './dto/create-voice-profile.dto';
@@ -38,4 +38,7 @@ export class VoiceProfilesController {
 
   @Post(':id/preview-audio')
   previewAudioUploadReserved(@Param('id') id: string) { return ok(this.service.previewAudioUploadReserved(id)); }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) { return ok(this.service.delete(id)); }
 }

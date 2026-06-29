@@ -9,10 +9,11 @@ import {
   TeamOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
-import { Avatar, Button, Layout, Menu, Space, Typography } from 'antd';
+import { Button, Layout, Menu, Space, Typography } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import { API_BASE_URL } from '../api/http';
+import { AvatarInitial } from '../components/AvatarInitial';
 
 const { Header, Sider, Content } = Layout;
 
@@ -68,7 +69,7 @@ export function StudioLayout() {
             <div className="header-api">{API_BASE_URL}</div>
           </div>
           <Space>
-            <Avatar className="admin-avatar">J</Avatar>
+            <AvatarInitial className="admin-avatar" name={admin?.nickname || admin?.email || 'Jarvis Admin'} />
             <div className="admin-meta">
               <div>{admin?.nickname || 'Jarvis Admin'}</div>
               <small>{admin?.email}</small>

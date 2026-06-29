@@ -1,6 +1,7 @@
 :root {
   --ios-blue: #007aff;
   --ios-blue-deep: #0057d9;
+  --avatar-blue: #0D21A5;
   --ios-bg: #f5f7fb;
   --ios-card: rgba(255, 255, 255, 0.78);
   --ios-border: rgba(60, 60, 67, 0.13);
@@ -57,7 +58,7 @@ body {
 }
 .header-kicker { font-size: 12px; color: var(--ios-secondary); }
 .header-api { font-size: 14px; color: var(--ios-text); font-weight: 650; margin-top: 2px; }
-.admin-avatar { background: linear-gradient(135deg, #007aff, #5ac8fa); font-weight: 800; }
+.admin-avatar { font-weight: 800; }
 .admin-meta { line-height: 1.1; }
 .admin-meta small { color: var(--ios-secondary); }
 .studio-content { padding: 28px; }
@@ -107,7 +108,7 @@ body {
 
 .agent-profile-card { overflow: hidden; }
 .agent-profile-hero { display: flex; align-items: center; gap: 28px; padding: 10px 4px 24px; border-bottom: 1px solid var(--ios-border); }
-.agent-profile-avatar { box-shadow: 0 18px 45px rgba(0, 122, 255, 0.16); border: 4px solid rgba(255,255,255,0.86); font-size: 42px; font-weight: 900; background: linear-gradient(135deg, #007aff, #5ac8fa); }
+.agent-profile-avatar { box-shadow: 0 18px 45px rgba(13, 33, 165, 0.20); border: 4px solid rgba(255,255,255,0.86); }
 .agent-profile-main { flex: 1; min-width: 0; }
 .agent-profile-name.ant-typography { margin: 0; letter-spacing: -0.05em; font-weight: 850; }
 .agent-profile-stats { display: flex; flex-wrap: wrap; gap: 20px; color: var(--ios-text); margin: 10px 0; }
@@ -179,4 +180,25 @@ body {
 @media (max-width: 760px) {
   .voice-hero { flex-direction: column; }
   .inline-audio { width: 100%; }
+}
+
+
+/* v1.7.3 avatar policy: every avatar-like UI uses #0D21A5 background and white first character. Avatar images/URLs are reserved in API only and not rendered in Studio. */
+.avatar-initial.ant-avatar, .admin-avatar.ant-avatar {
+  background: #0D21A5 !important;
+  color: #fff !important;
+  font-weight: 850;
+  letter-spacing: -0.04em;
+}
+.avatar-initial-large.ant-avatar {
+  font-size: 54px !important;
+  font-weight: 950 !important;
+}
+.reserved-field-note {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(13, 33, 165, 0.06);
+  border: 1px solid rgba(13, 33, 165, 0.14);
+  color: var(--ios-secondary);
+  font-size: 13px;
 }

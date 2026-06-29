@@ -254,3 +254,21 @@ Added professional Voice Profile preview audio ownership model:
 - Agent stores only `voice.profileId`
 - Agent edit page resolves selected Voice preview audio
 - local preview audio upload is browser-only and not persisted
+
+
+## v1.7.3 Studio Safety, Avatar Policy & Pricing Rules CRUD
+
+本版根据用户新增要求补齐：
+
+- 统一头像类视觉策略：`#0D21A5` 蓝底白色首字符。
+- Agent 编辑页头像首字符加大。
+- 头像图片字段 / 接口预留但不开放。
+- Pricing 计费规则 CRUD。
+- Agent / Voice / Model 删除操作。
+- 删除操作必须警告并再次确认。
+
+新增文档：
+
+- `05-api/07-20-studio-safety-avatar-pricing-rules-api.md`
+- `09-frontend/12-08-studio-safety-avatar-pricing-rules.md`
+- `10-engineering/11-32-studio-safety-avatar-pricing-rules-implementation.md`

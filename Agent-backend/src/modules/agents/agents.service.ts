@@ -74,4 +74,11 @@ export class AgentsService {
     agent.updatedAt = new Date().toISOString();
     return agent;
   }
+
+  delete(id: string) {
+    const index = mockAgents.findIndex((item) => item.id === id);
+    if (index === -1) throw new NotFoundException('Agent not found');
+    mockAgents.splice(index, 1);
+    return { deleted: true, id };
+  }
 }

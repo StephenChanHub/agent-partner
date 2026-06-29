@@ -100,7 +100,14 @@ export class VoiceProfilesService {
     return {
       id,
       status: 'RESERVED',
-      message: 'Preview audio upload is reserved. v1.7.2 frontend only uses local browser preview and does not upload files.',
+      message: 'Preview audio upload is reserved. v1.7.3 frontend only uses local browser preview and does not upload files.',
     };
+  }
+
+  delete(id: string) {
+    const index = mockVoiceProfiles.findIndex((profile) => profile.id === id);
+    if (index === -1) throw new NotFoundException('Voice profile not found');
+    mockVoiceProfiles.splice(index, 1);
+    return { deleted: true, id };
   }
 }

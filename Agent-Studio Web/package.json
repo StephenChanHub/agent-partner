@@ -1,9 +1,9 @@
 {
   "name": "agent-studio-web",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "private": true,
   "type": "module",
-  "description": "Jarvis Agent Studio Web - iOS style admin console for sandbox backend.",
+  "description": "Jarvis Agent Studio Web - v1.7.3 iOS style admin console with avatar policy, pricing rules CRUD and double-confirm deletes.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "dev:host": "vite --host 0.0.0.0 --port 5173",

@@ -4,6 +4,7 @@ import { StudioBillingController } from './studio-billing.controller';
 import { BillingService } from './billing.service';
 import { RechargeOrderService } from './recharge-order.service';
 import { RechargePackageService } from './recharge-package.service';
+import { PricingRuleService } from './pricing-rule.service';
 import { AgentTokenTransactionService } from './agent-token-transaction.service';
 import { MockPaymentService } from './mock-payment.service';
 import { AdminTokenAdjustmentService } from './admin-token-adjustment.service';
@@ -16,6 +17,7 @@ import { AgentTokenTransactionRepository } from './repositories/agent-token-tran
     BillingService,
     RechargeOrderService,
     RechargePackageService,
+    PricingRuleService,
     AgentTokenTransactionService,
     MockPaymentService,
     AdminTokenAdjustmentService,

@@ -569,3 +569,40 @@ model AgentTokenTransaction {
   @@index([operatorAdminId])
   @@map("agent_token_transactions")
 }
+
+
+// v1.7.3 reserved schema for Studio Pricing Rules CRUD.
+enum PricingRuleGroup {
+  CORE
+  LLM
+  TTS
+  BALANCE
+  VOICE
+  SYSTEM
+}
+
+enum PricingRuleValueType {
+  NUMBER
+  STRING
+  BOOLEAN
+}
+
+model PricingRule {
+  id          String               @id @default(uuid()) @db.Char(36)
+  key         String               @unique @db.VarChar(128)
+  label       String               @db.VarChar(128)
+  group       PricingRuleGroup
+  valueType   PricingRuleValueType @map("value_type")
+  value       Json
+  unit        String?              @db.VarChar(64)
+  description String?              @db.Text
+  editable    Boolean              @default(true)
+  status      ResourceProfileStatus @default(ACTIVE)
+  sortOrder   Int                  @default(100) @map("sort_order")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  @@index([group, status])
+  @@index([sortOrder])
+  @@map("pricing_rules")
+}

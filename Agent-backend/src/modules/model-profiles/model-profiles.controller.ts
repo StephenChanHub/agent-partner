@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ok, paginated } from '../../common/api-response';
 import { ModelProfilesService } from './model-profiles.service';
 import { CreateModelProfileDto } from './dto/create-model-profile.dto';
@@ -26,4 +26,7 @@ export class ModelProfilesController {
 
   @Post(':id/set-default')
   setDefault(@Param('id') id: string) { return ok(this.service.setDefault(id)); }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) { return ok(this.service.delete(id)); }
 }

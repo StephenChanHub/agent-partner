@@ -48,7 +48,7 @@ export type StudioUser = {
 export type AgentRecord = {
   id: string;
   slug: string;
-  status: 'DRAFT' | 'PUBLISHED' | 'DISABLED';
+  status: 'DRAFT' | 'PUBLISHED' | 'DISABLED' | 'ARCHIVED' | 'DELETED';
   version: string;
   createdAt: string;
   updatedAt: string;
@@ -57,6 +57,7 @@ export type AgentRecord = {
       name: string;
       slug?: string;
       description?: string;
+      /** Reserved only. v1.7.3 UI does not expose avatar upload/url input. */
       avatarUrl?: string;
     };
     social?: {
@@ -80,7 +81,7 @@ export type ModelProfile = {
   name?: string;
   modelName: string;
   baseUrl?: string;
-  status: string;
+  status: 'ACTIVE' | 'DISABLED' | 'ARCHIVED' | 'DELETED' | string;
   isDefault: boolean;
   apiKeyConfigured: boolean;
   apiKeyMasked?: string;
@@ -101,16 +102,32 @@ export type VoiceProfile = {
   outputFormat: string;
   language: string;
   description?: string;
-  /** Formal v1.7.2 field: Voice Profile preview sample audio. */
+  /** Formal field: Voice Profile preview sample audio. */
   previewAudioUrl?: string;
   /** Legacy alias retained during migration from previewUrl. */
   previewUrl?: string;
-  status: 'ACTIVE' | 'PUBLISHED' | 'DISABLED' | 'ARCHIVED';
+  status: 'ACTIVE' | 'PUBLISHED' | 'DISABLED' | 'ARCHIVED' | 'DELETED';
   isDefault: boolean;
   apiKeyConfigured: boolean;
   defaultSpeed?: number;
   defaultStability?: number;
   defaultSimilarityBoost?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PricingRule = {
+  id: string;
+  key: string;
+  label: string;
+  group: 'CORE' | 'LLM' | 'TTS' | 'BALANCE' | 'VOICE' | 'SYSTEM';
+  valueType: 'NUMBER' | 'STRING' | 'BOOLEAN';
+  value: number | string | boolean;
+  unit?: string;
+  description?: string;
+  editable: boolean;
+  status: 'ACTIVE' | 'DISABLED';
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 };
