@@ -20,4 +20,14 @@ export const homeAgents: HomeAgent[] = [
     name: 'Aria',
     description: 'A clear and structured assistant for learning, writing, and problem solving.',
   },
+  {
+    id: 'agent_orion',
+    name: 'Orion',
+    description: 'A focused partner for strategy, research, decisions, and long-form planning.',
+  },
+  {
+    id: 'agent_mira',
+    name: 'Mira',
+    description: 'A friendly creative partner for stories, ideas, inspiration, and everyday conversation.',
+  },
 ];

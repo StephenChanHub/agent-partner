@@ -278,3 +278,39 @@ Added professional Voice Profile preview audio ownership model:
 - Added professional admin interactions and production-ready UX baseline.
 - Added EnvironmentBanner, DataToolbar, ProductionReadinessPanel, ErrorBoundary and SystemReadinessPage.
 - Added request trace headers and environment-safe configuration.
+
+## v1.8.2 User Web Carousel Interaction Fix
+
+新增用户网页端首页交互修复：
+
+```text
+Agent-user web/src/pages/HomePage.tsx
+Agent-user web/src/pages/HomePage.css
+Agent-user web/src/config/agents.ts
+Agent-docs/09-frontend/12-12-agent-user-web-carousel-interaction-fix.md
+Agent-docs/10-engineering/11-36-agent-user-web-carousel-interaction-implementation.md
+```
+
+本版本将 Agent 首页卡片从原生 scroll-snap 改为手势滑动 + 点击目标卡片切换，并将 Mock Agent 增加到 5 个。
+
+## v1.8.6 User Web Header & Card Shadow Polish
+
+- Header 背景改为透明，取消顶部容器阴影、边框和毛玻璃背景。
+- 右上角用户头像改为圆角正方形，但继续遵守蓝底白色首字符策略。
+- Agent 卡片阴影迁移到卡片自身 `.agent-card-glass`，外层 carousel / deck 继续透明。
+- Hover 时卡片阴影增强并轻微上浮。
+
+## v1.8.7 User Web Flip Media Card
+
+新增用户端首页双面卡片交互：
+
+- 正面用于照片 / 视频媒体展示。
+- 背面用于 Agent 基础信息展示。
+- 支持 Y 轴翻转。
+- 支持本地图片 / 视频预览，不上传后端。
+- 视频切换后自动播放一次并停留在尾帧。
+- 相关文件：
+  - `Agent-user web/src/pages/HomePage.tsx`
+  - `Agent-user web/src/pages/HomePage.css`
+  - `Agent-docs/09-frontend/12-16-agent-user-web-flip-media-card.md`
+  - `Agent-docs/10-engineering/11-40-agent-user-web-flip-media-card-implementation.md`

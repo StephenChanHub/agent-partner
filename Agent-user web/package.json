@@ -1,9 +1,9 @@
 {
   "name": "agent-user-web",
-  "version": "1.8.1",
+  "version": "1.8.21",
   "private": true,
   "type": "module",
-  "description": "Jarvis Agent Platform v1.8.1 - polished user web home UI and git hygiene baseline.",
+  "description": "Jarvis Agent Platform v1.8.21 - chat glass swap, profile password reserve, and SVG sound icon polish.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5174",
     "dev:host": "vite --host 0.0.0.0 --port 5174",
@@ -19,7 +19,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5"
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1"
   }
 }

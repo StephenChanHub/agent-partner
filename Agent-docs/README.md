@@ -51,3 +51,9 @@ Agent-Studio Web/  管理员网页端 / React Vite
 - `09-frontend/12-10-agent-user-web-home.md`
 - `10-engineering/11-34-agent-user-web-home-implementation.md`
 - `05-api/07-22-agent-user-web-home-api-readiness.md`
+
+## v1.8.2 Update
+
+- 用户网页端首页卡片切换修复：手势滑动 + 点击目标卡片切换。
+- 卡片外部装载容器透明化，不再产生外层阴影。
+- 首页 Mock Agent 数量增加到 5 个。
