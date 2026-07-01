@@ -60,14 +60,41 @@ function formatTokens(value: number) {
   return value.toLocaleString('en-US');
 }
 
-function RollingTokens({ value }: { value: number }) {
-  const text = formatTokens(value);
+function formatTokenWheelValue(value: number) {
+  return String(Math.max(0, Math.floor(value)));
+}
+
+const wheelDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+function RollingDigit({ digit, index }: { digit: string; index: number }) {
+  const digitNumber = Number(digit);
+
   return (
-    <span className="slot-balance" aria-label={`${text} tokens`}>
+    <span className="slot-balance-wheel" aria-hidden="true">
+      <span
+        className="slot-balance-wheel-track"
+        style={{
+          transform: `translate3d(0, calc(-${digitNumber} * var(--slot-digit-height)), 0)`,
+          transitionDelay: `${index * 36}ms`,
+        }}
+      >
+        {wheelDigits.map((item) => (
+          <span className="slot-balance-wheel-number" key={item}>
+            {item}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function RollingTokens({ value }: { value: number }) {
+  const text = formatTokenWheelValue(value);
+
+  return (
+    <span className="slot-balance" aria-label={`${formatTokens(value)} tokens`}>
       {text.split('').map((char, index) => (
-        <span className="slot-balance-digit" key={`${value}_${index}_${char}`} style={{ animationDelay: `${index * 28}ms` }}>
-          {char}
-        </span>
+        <RollingDigit digit={char} index={index} key={`${index}_${text.length}`} />
       ))}
     </span>
   );
@@ -141,7 +168,7 @@ export function WalletPage() {
 
       <section className="wallet-balance-card" aria-label="Current token balance">
         <span className="wallet-eyebrow">Current balance</span>
-        <h1><span className="wallet-token-word">Tokens</span>：<RollingTokens value={balance} /></h1>
+        <h1><span className="wallet-token-word">Tokens</span><span className="wallet-token-colon">：</span><RollingTokens value={balance} /></h1>
         <p>Sandbox wallet is using local mock data. The structure is ready for Core recharge order, payment callback, and token transaction APIs.</p>
       </section>
 

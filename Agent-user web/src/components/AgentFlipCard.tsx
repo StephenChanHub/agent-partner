@@ -1,5 +1,6 @@
 import {
   type ChangeEvent,
+  type CSSProperties,
   type PointerEvent,
   useEffect,
   useRef,
@@ -32,6 +33,7 @@ type AgentFlipCardProps = {
   cardIndex?: number;
   dragX?: number;
   showStartButton?: boolean;
+  allowMediaSwipe?: boolean;
   mode?: 'carousel' | 'standalone';
   className?: string;
   onStart?: (agent: HomeAgent) => void;
@@ -63,6 +65,7 @@ export function AgentFlipCard({
   cardIndex,
   dragX = 0,
   showStartButton = true,
+  allowMediaSwipe = true,
   mode = 'carousel',
   className = '',
   onStart,
@@ -92,6 +95,12 @@ export function AgentFlipCard({
   }, [agent.id]);
 
   useEffect(() => {
+    if (!isActive) {
+      setIsFlipped(false);
+    }
+  }, [isActive]);
+
+  useEffect(() => {
     Object.entries(videoRefs.current).forEach(([mediaId, video]) => {
       if (!video) return;
       if (!currentMedia || mediaId !== currentMedia.id || currentMedia.type !== 'video' || !isActive || isFlipped) {
@@ -112,6 +121,11 @@ export function AgentFlipCard({
     });
   }, [agent.id, currentMedia?.id, isActive, isFlipped]);
 
+  const setFlippedSafely = (nextFlipped: boolean) => {
+    if (!isActive) return;
+    setIsFlipped(nextFlipped);
+  };
+
   const shiftMediaIndex = (direction: 'next' | 'previous') => {
     if (mediaItems.length < 2) return;
     const nextIndex = direction === 'next' ? (currentIndex + 1) % mediaItems.length : (currentIndex - 1 + mediaItems.length) % mediaItems.length;
@@ -119,7 +133,7 @@ export function AgentFlipCard({
   };
 
   const handleMediaPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (!isActive) return;
+    if (!allowMediaSwipe || !isActive || mediaItems.length < 2) return;
     event.stopPropagation();
     mediaPointerState.current = {
       startX: event.clientX,
@@ -259,7 +273,7 @@ export function AgentFlipCard({
       data-card-index={cardIndex}
       aria-label={`${agent.name} agent card`}
       aria-hidden={!isVisible}
-      style={mode === 'carousel' ? ({ '--drag-x': `${dragX}px` } as React.CSSProperties) : undefined}
+      style={mode === 'carousel' ? ({ '--drag-x': `${dragX}px` } as CSSProperties) : undefined}
     >
       <input
         ref={uploadInputRef}
@@ -343,11 +357,15 @@ export function AgentFlipCard({
                 disabled={!isActive}
                 aria-label={`Show ${agent.name} information`}
                 onPointerDown={(event) => event.stopPropagation()}
-                onPointerUp={(event) => event.stopPropagation()}
+                onPointerUp={(event) => {
+                  event.stopPropagation();
+                  if (!isActive) return;
+                  setFlippedSafely(true);
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
                   if (!isActive) return;
-                  setIsFlipped(true);
+                  setFlippedSafely(true);
                 }}
               >
                 i
@@ -377,11 +395,15 @@ export function AgentFlipCard({
             disabled={!isActive}
             aria-label={`Return to ${agent.name} media`}
             onPointerDown={(event) => event.stopPropagation()}
-            onPointerUp={(event) => event.stopPropagation()}
+            onPointerUp={(event) => {
+              event.stopPropagation();
+              if (!isActive) return;
+              setFlippedSafely(false);
+            }}
             onClick={(event) => {
               event.stopPropagation();
               if (!isActive) return;
-              setIsFlipped(false);
+              setFlippedSafely(false);
             }}
           >
             i

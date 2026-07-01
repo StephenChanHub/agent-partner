@@ -406,3 +406,218 @@
     flex-direction: column;
   }
 }
+
+/* V1.8.22 mobile profile adaptation */
+.profile-shell {
+  min-height: 100dvh;
+  min-height: 100svh;
+  padding-top: max(14px, calc(12px + var(--safe-top)));
+  padding-left: max(16px, var(--safe-left));
+  padding-right: max(16px, var(--safe-right));
+  padding-bottom: max(34px, calc(28px + var(--safe-bottom)));
+}
+
+@media (max-width: 900px) {
+  .profile-header {
+    grid-template-columns: 58px minmax(0, 1fr) 58px;
+    margin-bottom: 18px;
+  }
+
+  .profile-title {
+    font-size: 19px;
+  }
+
+  .profile-hero-card,
+  .profile-form-card,
+  .profile-settings-card {
+    border-radius: 30px;
+  }
+
+  .profile-hero-card {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 24px;
+  }
+
+  .profile-identity-block {
+    min-width: 0;
+  }
+
+  .profile-hero-card h1 {
+    font-size: clamp(34px, 9vw, 48px);
+  }
+
+  .profile-token-summary {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .profile-form-card,
+  .profile-settings-card {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .profile-shell {
+    padding-left: max(12px, var(--safe-left));
+    padding-right: max(12px, var(--safe-right));
+  }
+
+  .profile-header {
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    gap: 8px;
+  }
+
+  .profile-back-button,
+  .profile-logout-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 15px;
+  }
+
+  .profile-title {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+
+  .profile-hero-card,
+  .profile-form-card,
+  .profile-settings-card {
+    border-radius: 24px;
+  }
+
+  .profile-hero-card {
+    padding: 20px;
+    gap: 18px;
+  }
+
+  .profile-identity-block {
+    gap: 16px;
+  }
+
+  .profile-hero-avatar {
+    width: 70px !important;
+    height: 70px !important;
+    border-radius: 22px;
+  }
+
+  .profile-hero-card h1 {
+    font-size: clamp(30px, 11vw, 42px);
+  }
+
+  .profile-token-summary {
+    border-radius: 24px;
+    padding: 16px 18px;
+  }
+
+  .profile-token-summary strong {
+    font-size: clamp(30px, 11vw, 42px);
+  }
+
+  .profile-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .profile-field input,
+  .profile-field select {
+    height: 50px;
+    border-radius: 19px;
+    font-size: 14px;
+  }
+
+  .profile-password-section {
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .profile-password-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .profile-save-button {
+    min-height: 52px;
+    border-radius: 20px;
+  }
+}
+
+/* V1.8.23 mobile profile identity + logout text fixes */
+@media (max-width: 680px) {
+  .profile-identity-block {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 16px;
+  }
+
+  .profile-hero-card {
+    align-items: stretch;
+  }
+
+  .profile-logout-button {
+    width: auto !important;
+    min-width: 74px;
+    height: 42px;
+    padding: 0 13px !important;
+    font-size: 12px !important;
+    line-height: 1;
+  }
+
+  .profile-logout-button::before {
+    content: none !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .profile-identity-block {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+
+  .profile-hero-card h1 {
+    font-size: clamp(28px, 9.8vw, 38px);
+    overflow-wrap: anywhere;
+  }
+
+  .profile-logout-button {
+    min-width: 68px;
+    border-radius: 15px;
+  }
+}
+
+/* V1.8.24 mobile profile identity + logout consistency */
+@media (max-width: 640px) {
+  .profile-hero-card {
+    align-items: center !important;
+  }
+
+  .profile-identity-block {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 14px !important;
+    min-width: 0;
+  }
+
+  .profile-hero-avatar {
+    width: 58px !important;
+    height: 58px !important;
+    border-radius: 20px !important;
+    flex: 0 0 auto;
+  }
+
+  .profile-identity-block h1 {
+    font-size: clamp(25px, 7vw, 34px) !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .profile-logout-button {
+    min-width: 74px;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+  }
+}

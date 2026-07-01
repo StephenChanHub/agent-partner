@@ -276,3 +276,46 @@
     padding: 24px;
   }
 }
+
+/* V1.8.22 mobile auth modal adaptation */
+@media (max-width: 560px) {
+  .auth-modal-layer {
+    align-items: end;
+    padding: calc(18px + var(--safe-top)) max(12px, var(--safe-right)) calc(12px + var(--safe-bottom)) max(12px, var(--safe-left));
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 420px;
+    max-height: calc(100dvh - 36px - var(--safe-top) - var(--safe-bottom));
+    max-height: calc(100svh - 36px - var(--safe-top) - var(--safe-bottom));
+    overflow-y: auto;
+    border-radius: 32px;
+    padding: 24px 20px 20px;
+  }
+
+  .auth-card--login,
+  .auth-card--register {
+    min-height: auto;
+    width: 100%;
+  }
+
+  .auth-heading h2 {
+    font-size: 30px;
+  }
+
+  .auth-form input {
+    height: 50px;
+    border-radius: 18px;
+  }
+
+  .auth-submit {
+    min-height: 52px;
+    border-radius: 20px;
+  }
+
+  .auth-close {
+    top: 14px;
+    right: 14px;
+  }
+}

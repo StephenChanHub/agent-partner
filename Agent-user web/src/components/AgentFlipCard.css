@@ -614,3 +614,473 @@
     0 30px 66px rgba(7, 12, 28, 0.30),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
+
+/* V1.8.22 mobile responsive card fixes */
+@media (max-width: 900px) {
+  .agent-card[data-distance='-1'] {
+    --card-x: -108%;
+    --card-scale: 0.78;
+    --card-opacity: 0.36;
+  }
+
+  .agent-card[data-distance='1'] {
+    --card-x: 108%;
+    --card-scale: 0.78;
+    --card-opacity: 0.36;
+  }
+
+  .agent-card[data-distance='-2'],
+  .agent-card[data-distance='2'] {
+    --card-opacity: 0;
+    pointer-events: none;
+  }
+
+  .agent-card--visible:hover:not(.agent-card--standalone) {
+    transform: translate3d(calc(-50% + var(--card-x) + var(--drag-x)), -10px, 0) scale(calc(var(--card-scale) * 1.02));
+  }
+}
+
+@media (max-width: 520px) {
+  .agent-card-face {
+    box-shadow:
+      0 34px 82px rgba(15, 23, 42, 0.24),
+      0 14px 34px rgba(15, 23, 42, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.60);
+  }
+
+  .agent-card--visible:hover .agent-card-face {
+    box-shadow:
+      0 46px 100px rgba(15, 23, 42, 0.28),
+      0 18px 42px rgba(15, 23, 42, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  }
+
+  .agent-card[data-distance='-1'] {
+    --card-x: -102%;
+    --card-scale: 0.77;
+    --card-opacity: 0.28;
+  }
+
+  .agent-card[data-distance='1'] {
+    --card-x: 102%;
+    --card-scale: 0.77;
+    --card-opacity: 0.28;
+  }
+
+  .card-top-controls {
+    top: 14px;
+    left: 14px;
+    right: 14px;
+  }
+
+  .media-count-dots {
+    min-height: 28px;
+    padding: 0 9px;
+    gap: 5px;
+  }
+
+  .media-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .media-dot--active {
+    width: 16px;
+  }
+
+  .info-button,
+  .sound-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sound-wave-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .liquid-start-button {
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    height: 50px;
+    font-size: 13px;
+    letter-spacing: 0.10em;
+  }
+
+  .upload-plus-button {
+    width: 66px;
+    height: 66px;
+    font-size: 40px;
+  }
+
+  .agent-card-face--back {
+    padding: 28px 22px 24px;
+  }
+
+  .agent-back-content {
+    padding-bottom: 50px;
+  }
+
+  .agent-back-content h2 {
+    margin-top: 22px;
+    font-size: clamp(28px, 8.4vw, 34px);
+  }
+
+  .agent-back-content p {
+    max-width: 235px;
+    font-size: 14px;
+    line-height: 1.48;
+  }
+
+  .agent-card--standalone {
+    width: min(82vw, 330px);
+    max-height: min(74dvh, 560px);
+    --card-radius: 30px;
+  }
+
+  .agent-card--standalone:hover {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .agent-card[data-distance='-1'],
+  .agent-card[data-distance='1'] {
+    --card-opacity: 0.20;
+  }
+
+  .agent-back-content p {
+    max-width: 210px;
+    font-size: 13px;
+  }
+
+  .agent-card--standalone {
+    width: min(84vw, 300px);
+  }
+}
+
+/* V1.8.23 mobile touch + stable 3D flip fixes */
+.agent-card,
+.agent-card-inner,
+.agent-card-face {
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+}
+
+.agent-card-inner {
+  transform-origin: center center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.agent-card--flipped .agent-card-inner {
+  transform: rotateY(180deg) translateZ(0);
+}
+
+.agent-card--flipping {
+  pointer-events: none;
+}
+
+.agent-card-face {
+  transform-origin: center center;
+  -webkit-transform: translateZ(0);
+}
+
+.agent-card-face--front {
+  transform: rotateY(0deg) translateZ(1px);
+}
+
+.agent-card-face--back {
+  transform: rotateY(180deg) translateZ(1px);
+}
+
+.card-top-controls {
+  transform: translateZ(4px);
+}
+
+.liquid-action-button,
+.info-button,
+.sound-button,
+.info-button--back,
+.liquid-start-button,
+.upload-plus-button,
+.media-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.info-button {
+  font-style: normal;
+  font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sound-wave-icon {
+  display: block;
+  margin: auto;
+  transform: translateX(-1px);
+}
+
+.media-frame {
+  touch-action: pan-y;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .agent-card--visible:hover:not(.agent-card--standalone),
+  .agent-card--standalone:hover {
+    transform: translate3d(calc(-50% + var(--card-x) + var(--drag-x)), 0, 0) scale(var(--card-scale)) !important;
+  }
+
+  .agent-card--standalone:hover {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .agent-card-inner {
+    transition: transform 1000ms cubic-bezier(0.19, 1, 0.22, 1);
+  }
+
+  .info-button,
+  .sound-button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .sound-wave-icon {
+    width: 19px;
+    height: 19px;
+  }
+}
+
+
+/* V1.8.24 mobile single-card carousel + softer shadow + stable flip */
+@media (max-width: 640px) {
+  .agent-card[data-distance='-1'],
+  .agent-card[data-distance='1'],
+  .agent-card[data-distance='-2'],
+  .agent-card[data-distance='2'] {
+    --card-opacity: 0 !important;
+    --card-scale: 0.92 !important;
+    pointer-events: none !important;
+    visibility: hidden;
+  }
+
+  .agent-card[data-distance='0'] {
+    --card-x: 0% !important;
+    --card-scale: 1 !important;
+    --card-opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible;
+  }
+
+  .agent-card-face {
+    box-shadow:
+      0 30px 72px rgba(15, 23, 42, 0.18),
+      0 10px 24px rgba(15, 23, 42, 0.10),
+      inset 0 1px 0 rgba(255, 255, 255, 0.58) !important;
+  }
+
+  .agent-card--visible:hover .agent-card-face {
+    box-shadow:
+      0 36px 86px rgba(15, 23, 42, 0.20),
+      0 12px 28px rgba(15, 23, 42, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 0.64) !important;
+  }
+
+  .agent-card--visible:hover:not(.agent-card--standalone) {
+    transform: translate3d(calc(-50% + var(--card-x) + var(--drag-x)), 0, 0) scale(var(--card-scale)) !important;
+  }
+
+  .agent-card-inner {
+    transition: transform 1000ms cubic-bezier(0.19, 1, 0.22, 1) !important;
+    transform-style: preserve-3d !important;
+    -webkit-transform-style: preserve-3d !important;
+  }
+
+  .agent-card--flipped .agent-card-inner {
+    transform: rotateY(180deg) !important;
+  }
+
+  .agent-card-face {
+    backface-visibility: hidden !important;
+    -webkit-backface-visibility: hidden !important;
+  }
+
+  .agent-card-face--front {
+    transform: rotateY(0deg) translateZ(0.5px) !important;
+  }
+
+  .agent-card-face--back {
+    transform: rotateY(180deg) translateZ(0.5px) !important;
+  }
+}
+
+/* V1.8.24 precise icon centering */
+.info-button,
+.sound-button,
+.info-button--back,
+.liquid-action-button,
+.media-dot,
+.upload-plus-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  line-height: 1 !important;
+}
+
+.sound-wave-icon {
+  transform: none !important;
+  margin: 0 auto !important;
+}
+
+/* V1.8.26 definitive two-sided flip interaction fix.
+ * Keep the 3D parent visible while only the two faces hide their backfaces.
+ * This avoids invisible front-face layers blocking the back-side buttons on desktop and mobile. */
+.agent-card-inner {
+  transform-origin: center center !important;
+  transform-style: preserve-3d !important;
+  -webkit-transform-style: preserve-3d !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  transition: transform 860ms cubic-bezier(0.2, 0.82, 0.18, 1) !important;
+}
+
+.agent-card--flipped .agent-card-inner {
+  transform: rotateY(180deg) !important;
+}
+
+.agent-card-face {
+  pointer-events: none;
+  transform-style: preserve-3d !important;
+  -webkit-transform-style: preserve-3d !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+}
+
+.agent-card-face--front {
+  transform: rotateY(0deg) translateZ(1px) !important;
+}
+
+.agent-card-face--back {
+  transform: rotateY(180deg) translateZ(1px) !important;
+}
+
+.agent-card:not(.agent-card--flipped) .agent-card-face--front {
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.agent-card:not(.agent-card--flipped) .agent-card-face--back {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.agent-card.agent-card--flipped .agent-card-face--front {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.agent-card.agent-card--flipped .agent-card-face--back {
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.agent-card--hidden,
+.agent-card:not(.agent-card--active) {
+  pointer-events: none;
+}
+
+.agent-card--active.agent-card--visible {
+  pointer-events: auto;
+}
+
+.info-button--back,
+.agent-card.agent-card--flipped .info-button--back,
+.agent-card.agent-card--flipped .liquid-start-button--back,
+.agent-card.agent-card--flipped .agent-back-content {
+  pointer-events: auto;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .agent-card-inner {
+    transition: transform 760ms cubic-bezier(0.19, 1, 0.22, 1) !important;
+  }
+}
+
+/* Preserve desktop side-card tap selection while keeping side-card inner controls disabled. */
+.agent-card--visible:not(.agent-card--active) {
+  pointer-events: auto;
+}
+
+.agent-card--visible:not(.agent-card--active) .agent-card-face {
+  pointer-events: none;
+}
+
+.agent-carousel--tiktok .agent-card--visible:not(.agent-card--active) {
+  pointer-events: none;
+}
+
+/* V1.8.27 definitive clickable back-face guard.
+ * The hidden side is not only pointer-disabled but also visibility-hidden,
+ * so it cannot steal taps/clicks on either desktop or mobile. */
+.agent-card-face {
+  visibility: hidden;
+}
+
+.agent-card:not(.agent-card--flipped) .agent-card-face--front,
+.agent-card.agent-card--flipped .agent-card-face--back {
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+.agent-card:not(.agent-card--flipped) .agent-card-face--back,
+.agent-card.agent-card--flipped .agent-card-face--front {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.agent-card.agent-card--flipped .info-button--back,
+.agent-card.agent-card--flipped .liquid-start-button--back {
+  pointer-events: auto !important;
+  z-index: 24 !important;
+  transform: translateZ(10px);
+}
+
+.info-button--back {
+  z-index: 24 !important;
+}
+
+/* V1.8.28 native mobile stack compatibility guard.
+ * The mobile home deck now keeps all cards mounted, so candidate cards must
+ * stay visible even though the older mobile single-card rule hid side slots. */
+@media (max-width: 640px) {
+  .agent-carousel--mobile-native-stack .agent-card[data-distance='-1'],
+  .agent-carousel--mobile-native-stack .agent-card[data-distance='1'] {
+    opacity: 0.68 !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+  }
+
+  .agent-carousel--mobile-native-stack .agent-card[data-distance='0'] {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  .agent-carousel--mobile-native-stack .agent-card[data-distance='99'],
+  .agent-carousel--mobile-native-stack .agent-card--hidden[data-distance='99'] {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+}
