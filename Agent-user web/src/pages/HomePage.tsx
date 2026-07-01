@@ -17,6 +17,8 @@ import "./HomePage.css";
 const SWIPE_THRESHOLD = 54;
 const MOTION_SWIPE_VELOCITY = 520;
 const MAX_DRAG_X = 92;
+const MOBILE_SNAP_SWITCH_MS = 620;
+const MOBILE_RELEASE_VELOCITY_CLAMP = 980;
 const MOBILE_QUERY = "(max-width: 640px)";
 
 type PointerState = {
@@ -39,6 +41,7 @@ type MotionCardLayout = {
   x: number;
   y: number;
   rotate: number;
+  rotateX: number;
   scale: number;
   opacity: number;
   filter: string;
@@ -167,18 +170,24 @@ function useMobileMotionMetrics() {
 function getMotionFanLayout(
   distance: number,
   metrics: MobileMotionMetrics,
+  isSwitching = false,
+  releaseVelocity = 0,
 ): MotionCardLayout {
   const absDistance = Math.abs(distance);
   const sign = Math.sign(distance);
+  const velocityBlur = Math.min(1.2, Math.abs(releaseVelocity) / 1200);
 
   if (absDistance === 0) {
     return {
       x: 0,
-      y: 0,
+      y: -7,
       rotate: 0,
-      scale: 1,
+      rotateX: 0,
+      scale: 1.035,
       opacity: 1,
-      filter: "blur(0px) saturate(1) contrast(1)",
+      filter: isSwitching
+        ? `blur(${(velocityBlur * 0.42).toFixed(2)}px) saturate(1.03) contrast(1)`
+        : "blur(0px) saturate(1.02) contrast(1)",
       zIndex: 60,
     };
   }
@@ -187,10 +196,11 @@ function getMotionFanLayout(
     return {
       x: sign * metrics.cardWidth * 1.18,
       y: metrics.cardHeight * 0.18,
-      rotate: sign * 24,
-      scale: 0.66,
+      rotate: sign * 22,
+      rotateX: 1.5,
+      scale: 0.68,
       opacity: 0,
-      filter: "blur(7px) saturate(0.72) contrast(0.9)",
+      filter: `blur(${(7 + velocityBlur).toFixed(2)}px) saturate(0.72) contrast(0.9)`,
       zIndex: 1,
     };
   }
@@ -202,33 +212,41 @@ function getMotionFanLayout(
 
   return {
     x,
-    y,
-    rotate: distance * 10.8,
-    scale: absDistance==0?1.03:Math.max(0.7,1-absDistance*0.13),
-    opacity: absDistance === 1 ? 0.62 : 0.24,
+    y: y + 10,
+    rotate: distance * 9.5,
+    rotateX: absDistance === 1 ? 1.2 : 2.4,
+    scale: Math.max(0.72, 1 - absDistance * 0.12),
+    opacity: absDistance === 1 ? 0.60 : 0.22,
     filter:
       absDistance === 1
-        ? "blur(2.2px) saturate(0.9) contrast(0.98)"
-        : "blur(5.2px) saturate(0.78) contrast(0.92)",
+        ? `blur(${(2.1 + velocityBlur * 0.7).toFixed(2)}px) saturate(0.9) contrast(0.98)`
+        : `blur(${(5.1 + velocityBlur * 0.8).toFixed(2)}px) saturate(0.78) contrast(0.92)`,
     zIndex: 60 - absDistance * 14,
   };
 }
 
-function getMobileMotionTransition(isDragging: boolean) {
+function getMobileMotionTransition(isDragging: boolean, releaseVelocity: number) {
+  const velocity = Math.max(
+    -MOBILE_RELEASE_VELOCITY_CLAMP,
+    Math.min(MOBILE_RELEASE_VELOCITY_CLAMP, releaseVelocity),
+  );
+
   if (isDragging) {
     return {
       type: "spring" as const,
-      stiffness: 520,
-      damping: 44,
-      mass: 0.7,
+      stiffness: 380,
+      damping: 36,
+      mass: 0.72,
+      velocity: velocity * 0.18,
     };
   }
 
   return {
     type: "spring" as const,
-    stiffness: 420,
-    damping: 34,
-    mass: 0.72,
+    stiffness: 330,
+    damping: 27,
+    mass: 0.86,
+    velocity: velocity * 0.28,
   };
 }
 
@@ -238,6 +256,7 @@ export function HomePage() {
   const [dragY, setDragY] = useState(0);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMotionDragging, setIsMotionDragging] = useState(false);
+  const [releaseVelocityX, setReleaseVelocityX] = useState(0);
   const [switchDirection, setSwitchDirection] = useState<
     "next" | "previous" | null
   >(null);
@@ -300,7 +319,11 @@ export function HomePage() {
       : ("previous" as const);
   };
 
-  const goToIndex = (index: number, direction?: "next" | "previous") => {
+  const goToIndex = (
+    index: number,
+    direction?: "next" | "previous",
+    releaseVelocity = 0,
+  ) => {
     const total = homeAgents.length;
     const nextIndex = ((index % total) + total) % total;
     if (nextIndex === activeIndex) return;
@@ -314,13 +337,14 @@ export function HomePage() {
       switchFrameRef.current = null;
     }
 
+    setReleaseVelocityX(releaseVelocity);
     setSwitchDirection(nextDirection);
     setActiveIndex(nextIndex);
 
     switchTimerRef.current = window.setTimeout(() => {
       setSwitchDirection(null);
       switchTimerRef.current = null;
-    }, 520);
+    }, MOBILE_SNAP_SWITCH_MS);
   };
 
   const getCardIndexFromTarget = (target: EventTarget | null) => {
@@ -387,6 +411,7 @@ export function HomePage() {
       goToIndex(
         deltaX < 0 ? activeIndex + 1 : activeIndex - 1,
         deltaX < 0 ? "next" : "previous",
+        deltaX,
       );
       dragged.current = false;
       return;
@@ -453,6 +478,7 @@ export function HomePage() {
       goToIndex(
         deltaX < 0 ? activeIndex + 1 : activeIndex - 1,
         deltaX < 0 ? "next" : "previous",
+        velocityX,
       );
     }
 
@@ -495,7 +521,12 @@ export function HomePage() {
 
   const renderMobileMotionCards = () =>
     visibleCards.map(({ agent, index, distance, isActive, isVisible }) => {
-      const layout = getMotionFanLayout(distance, mobileMetrics);
+      const layout = getMotionFanLayout(
+        distance,
+        mobileMetrics,
+        switchDirection !== null,
+        releaseVelocityX,
+      );
       const isSideCandidate = Math.abs(distance) === 1;
       const isFarCandidate = Math.abs(distance) === 2;
 
@@ -515,7 +546,10 @@ export function HomePage() {
           aria-hidden={!isVisible}
           animate={layout}
           initial={false}
-          transition={getMobileMotionTransition(isMotionDragging)}
+          transformTemplate={({ x, y, rotate, rotateX, scale }) =>
+            `translate3d(${x}, ${y}, 0) translateZ(0) rotateX(${rotateX}) rotateZ(${rotate}) scale(${scale})`
+          }
+          transition={getMobileMotionTransition(isMotionDragging, releaseVelocityX)}
           onClick={(event) => {
             event.stopPropagation();
             if (
@@ -550,7 +584,7 @@ export function HomePage() {
       aria-live="polite"
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.24}
+      dragElastic={0.18}
       dragMomentum={false}
       dragDirectionLock
       onDragStart={handleMotionDragStart}
@@ -558,7 +592,7 @@ export function HomePage() {
       onDragEnd={handleMotionDragEnd}
       onClick={handleMotionDeckClick}
       animate={{ x: 0 }}
-      transition={{ type: "spring", stiffness: 360, damping: 34, mass: 0.82 }}
+      transition={{ type: "spring", stiffness: 330, damping: 30, mass: 0.86 }}
     >
       {renderMobileMotionCards()}
     </motion.div>
