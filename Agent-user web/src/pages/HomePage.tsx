@@ -167,15 +167,17 @@ function useMobileMotionMetrics() {
 function getMotionFanLayout(
   distance: number,
   metrics: MobileMotionMetrics,
+  dragOffsetX: number,
 ): MotionCardLayout {
   const absDistance = Math.abs(distance);
   const sign = Math.sign(distance);
+  const isDragging = Math.abs(dragOffsetX) > 2;
 
   if (absDistance === 0) {
     return {
-      x: 0,
+      x: dragOffsetX,
       y: 0,
-      rotate: 0,
+      rotate: isDragging ? (dragOffsetX / metrics.cardWidth) * 6 : 0,
       scale: 1,
       opacity: 1,
       filter: "blur(0px) saturate(1) contrast(1)",
@@ -185,7 +187,7 @@ function getMotionFanLayout(
 
   if (absDistance > 2) {
     return {
-      x: sign * metrics.cardWidth * 1.18,
+      x: sign * metrics.cardWidth * 1.18 + dragOffsetX * 0.08,
       y: metrics.cardHeight * 0.18,
       rotate: sign * 24,
       scale: 0.66,
@@ -197,14 +199,16 @@ function getMotionFanLayout(
 
   const angle = distance * 16 * (Math.PI / 180);
   const radius = metrics.cardWidth * 2.12;
-  const x = Math.sin(angle) * radius;
+  const x = Math.sin(angle) * radius + dragOffsetX * 0.28;
   const y = (1 - Math.cos(angle)) * radius + absDistance * 10;
 
   return {
     x,
     y,
-    rotate: distance * 10.8,
-    scale: absDistance==0?1.03:Math.max(0.7,1-absDistance*0.13),
+    rotate:
+      distance * 10.8 +
+      (isDragging ? (dragOffsetX / metrics.cardWidth) * 2.5 : 0),
+    scale: Math.max(0.7, 1 - absDistance * 0.13),
     opacity: absDistance === 1 ? 0.62 : 0.24,
     filter:
       absDistance === 1
@@ -214,22 +218,24 @@ function getMotionFanLayout(
   };
 }
 
-function getMobileMotionTransition(isDragging: boolean) {
-  if (isDragging) {
-    return {
-      type: "spring" as const,
-      stiffness: 520,
-      damping: 44,
-      mass: 0.7,
-    };
-  }
+/** Instant tracking during active drag for 1:1 finger following. */
+const DRAG_TRANSITION = { type: "tween" as const, duration: 0.01 };
 
-  return {
-    type: "spring" as const,
-    stiffness: 420,
-    damping: 34,
-    mass: 0.72,
-  };
+/**
+ * Near-critically-damped spring.
+ * damping ratio ≈ 33 / (2·√330) ≈ 0.908  →  slight underdamp for a subtle
+ * "pop into place" snap feel without visible oscillation.
+ */
+const SPRING_TRANSITION = {
+  type: "spring" as const,
+  stiffness: 330,
+  damping: 33,
+  mass: 1.0,
+};
+
+function getMobileMotionTransition(isDragging: boolean) {
+  if (isDragging) return DRAG_TRANSITION;
+  return SPRING_TRANSITION;
 }
 
 export function HomePage() {
@@ -238,9 +244,7 @@ export function HomePage() {
   const [dragY, setDragY] = useState(0);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMotionDragging, setIsMotionDragging] = useState(false);
-  const [switchDirection, setSwitchDirection] = useState<
-    "next" | "previous" | null
-  >(null);
+  const [dragOffsetX, setDragOffsetX] = useState(0);
   const session = useUserSession();
   const isMobileCarousel = useMobileCarouselMode();
   const mobileMetrics = useMobileMotionMetrics();
@@ -250,19 +254,11 @@ export function HomePage() {
   const motionDragged = useRef(false);
   const suppressNextDeckClick = useRef(false);
   const suppressClickTimerRef = useRef<number | null>(null);
-  const switchTimerRef = useRef<number | null>(null);
-  const switchFrameRef = useRef<number | null>(null);
 
   const activeAgent = homeAgents[activeIndex];
 
   useEffect(() => {
     return () => {
-      if (switchTimerRef.current !== null) {
-        window.clearTimeout(switchTimerRef.current);
-      }
-      if (switchFrameRef.current !== null) {
-        window.cancelAnimationFrame(switchFrameRef.current);
-      }
       if (suppressClickTimerRef.current !== null) {
         window.clearTimeout(suppressClickTimerRef.current);
       }
@@ -287,40 +283,13 @@ export function HomePage() {
 
   const visibleCards = cards;
 
-  const resolveSwitchDirection = (nextIndex: number) => {
-    const total = homeAgents.length;
-    if (nextIndex === (activeIndex + 1) % total) return "next" as const;
-    if (nextIndex === (activeIndex - 1 + total) % total)
-      return "previous" as const;
-
-    const forwardDistance = (nextIndex - activeIndex + total) % total;
-    const backwardDistance = (activeIndex - nextIndex + total) % total;
-    return forwardDistance <= backwardDistance
-      ? ("next" as const)
-      : ("previous" as const);
-  };
-
-  const goToIndex = (index: number, direction?: "next" | "previous") => {
+  const goToIndex = (index: number) => {
     const total = homeAgents.length;
     const nextIndex = ((index % total) + total) % total;
     if (nextIndex === activeIndex) return;
 
-    const nextDirection = direction ?? resolveSwitchDirection(nextIndex);
-    if (switchTimerRef.current !== null) {
-      window.clearTimeout(switchTimerRef.current);
-    }
-    if (switchFrameRef.current !== null) {
-      window.cancelAnimationFrame(switchFrameRef.current);
-      switchFrameRef.current = null;
-    }
-
-    setSwitchDirection(nextDirection);
     setActiveIndex(nextIndex);
-
-    switchTimerRef.current = window.setTimeout(() => {
-      setSwitchDirection(null);
-      switchTimerRef.current = null;
-    }, 520);
+    setDragOffsetX(0);
   };
 
   const getCardIndexFromTarget = (target: EventTarget | null) => {
@@ -359,7 +328,10 @@ export function HomePage() {
     setDragX(Math.max(-MAX_DRAG_X, Math.min(MAX_DRAG_X, nextDragX)));
     setDragY(0);
 
-    if (Math.abs(nextDragX) > 7 && Math.abs(nextDragX) >= Math.abs(nextDragY) * 0.75) {
+    if (
+      Math.abs(nextDragX) > 7 &&
+      Math.abs(nextDragX) >= Math.abs(nextDragY) * 0.75
+    ) {
       dragged.current = true;
     }
   };
@@ -382,17 +354,21 @@ export function HomePage() {
       // Browser may release pointer capture automatically.
     }
 
-    if (Math.abs(deltaX) >= SWIPE_THRESHOLD && Math.abs(deltaX) >= Math.abs(deltaY) * 0.75) {
+    if (
+      Math.abs(deltaX) >= SWIPE_THRESHOLD &&
+      Math.abs(deltaX) >= Math.abs(deltaY) * 0.75
+    ) {
       dragged.current = true;
-      goToIndex(
-        deltaX < 0 ? activeIndex + 1 : activeIndex - 1,
-        deltaX < 0 ? "next" : "previous",
-      );
+      goToIndex(deltaX < 0 ? activeIndex + 1 : activeIndex - 1);
       dragged.current = false;
       return;
     }
 
-    if (!dragged.current && tapTargetIndex !== null && tapTargetIndex !== activeIndex) {
+    if (
+      !dragged.current &&
+      tapTargetIndex !== null &&
+      tapTargetIndex !== activeIndex
+    ) {
       goToIndex(tapTargetIndex);
     }
 
@@ -418,9 +394,12 @@ export function HomePage() {
   ) => {
     if (!isMobileCarousel) return;
 
-    if (Math.abs(info.offset.x) > 7) {
+    if (Math.abs(info.offset.x) > 6) {
       motionDragged.current = true;
     }
+
+    // Track drag offset in real time so cards follow the finger
+    setDragOffsetX(info.offset.x);
   };
 
   const handleMotionDragEnd = (
@@ -431,14 +410,22 @@ export function HomePage() {
 
     const deltaX = info.offset.x;
     const velocityX = info.velocity.x;
-    const hasDragged = Math.abs(deltaX) > 7 || Math.abs(velocityX) > 120;
-    const shouldSwitch =
-      Math.abs(deltaX) >= SWIPE_THRESHOLD ||
-      Math.abs(velocityX) >= MOTION_SWIPE_VELOCITY;
+    const absDelta = Math.abs(deltaX);
+    const absVelocity = Math.abs(velocityX);
 
     setIsMotionDragging(false);
 
-    if (hasDragged) {
+    // --- Magnetic snap + inertia logic ---
+    const meetsThreshold = absDelta >= SWIPE_THRESHOLD;
+    const meetsVelocity = absVelocity >= MOTION_SWIPE_VELOCITY;
+    // Magnetic zone: close to threshold with moderate velocity → snap through
+    const inMagneticZone =
+      absDelta >= SWIPE_THRESHOLD * 0.55 &&
+      absVelocity >= MOTION_SWIPE_VELOCITY * 0.35;
+
+    const shouldSwitch = meetsThreshold || meetsVelocity || inMagneticZone;
+
+    if (shouldSwitch) {
       suppressNextDeckClick.current = true;
       if (suppressClickTimerRef.current !== null) {
         window.clearTimeout(suppressClickTimerRef.current);
@@ -446,14 +433,12 @@ export function HomePage() {
       suppressClickTimerRef.current = window.setTimeout(() => {
         suppressNextDeckClick.current = false;
         suppressClickTimerRef.current = null;
-      }, 110);
-    }
+      }, 180);
 
-    if (shouldSwitch) {
-      goToIndex(
-        deltaX < 0 ? activeIndex + 1 : activeIndex - 1,
-        deltaX < 0 ? "next" : "previous",
-      );
+      goToIndex(deltaX < 0 ? activeIndex + 1 : activeIndex - 1);
+    } else {
+      // Snap back — reset drag offset so cards spring to their base positions
+      setDragOffsetX(0);
     }
 
     window.setTimeout(() => {
@@ -495,7 +480,7 @@ export function HomePage() {
 
   const renderMobileMotionCards = () =>
     visibleCards.map(({ agent, index, distance, isActive, isVisible }) => {
-      const layout = getMotionFanLayout(distance, mobileMetrics);
+      const layout = getMotionFanLayout(distance, mobileMetrics, dragOffsetX);
       const isSideCandidate = Math.abs(distance) === 1;
       const isFarCandidate = Math.abs(distance) === 2;
 
@@ -615,9 +600,6 @@ export function HomePage() {
             isMobileCarousel ? "agent-carousel--mobile-motion-rebuild" : "",
             isMobileCarousel && isMotionDragging
               ? "agent-carousel--dragging"
-              : "",
-            isMobileCarousel && switchDirection
-              ? `agent-carousel--switch-${switchDirection}`
               : "",
           ]
             .filter(Boolean)
