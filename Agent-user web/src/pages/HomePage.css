@@ -1583,3 +1583,99 @@
     --mobile-deck-height: calc(var(--mobile-card-height) * 1.24);
   }
 }
+
+/* V1.8.33 selected-card opacity + smoother 1s Y-axis flip.
+ * Applies to both desktop AgentFlipCard instances and the rebuilt mobile
+ * Motion slots. Kept at the end so it overrides older carousel patches. */
+.agent-carousel {
+  perspective: 2400px;
+  perspective-origin: 50% 50%;
+}
+
+.agent-card--home-selected,
+.agent-card[data-distance='0'],
+.agent-motion-card-slot--active .agent-card {
+  --card-opacity: 1 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  perspective: 2400px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.agent-card--home-selected .agent-card-inner,
+.agent-card[data-distance='0'] .agent-card-inner,
+.agent-motion-card-slot--active .agent-card-inner {
+  transform-style: preserve-3d !important;
+  -webkit-transform-style: preserve-3d !important;
+  transform-origin: 50% 50% !important;
+  will-change: transform;
+  transition: transform 1000ms cubic-bezier(0.45, 0.02, 0.18, 1) !important;
+}
+
+.agent-card--home-selected .agent-card-face,
+.agent-card[data-distance='0'] .agent-card-face,
+.agent-motion-card-slot--active .agent-card-face {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  transform-style: preserve-3d !important;
+  -webkit-transform-style: preserve-3d !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+  background-color: #ffffff !important;
+  background-clip: padding-box;
+  box-shadow:
+    0 44px 104px rgba(15, 23, 42, 0.25),
+    0 20px 42px rgba(15, 23, 42, 0.145),
+    0 30px 38px -24px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66) !important;
+}
+
+.agent-card--home-selected .agent-card-front,
+.agent-card--home-selected .agent-card-back,
+.agent-card--home-selected [data-card-face='front'],
+.agent-card--home-selected [data-card-face='back'],
+.agent-card[data-distance='0'] .agent-card-front,
+.agent-card[data-distance='0'] .agent-card-back,
+.agent-card[data-distance='0'] [data-card-face='front'],
+.agent-card[data-distance='0'] [data-card-face='back'],
+.agent-motion-card-slot--active .agent-card-front,
+.agent-motion-card-slot--active .agent-card-back,
+.agent-motion-card-slot--active [data-card-face='front'],
+.agent-motion-card-slot--active [data-card-face='back'] {
+  opacity: 1 !important;
+  filter: none !important;
+  backface-visibility: hidden !important;
+  -webkit-backface-visibility: hidden !important;
+}
+
+.agent-card--home-selected .agent-card-face::before,
+.agent-card--home-selected .agent-card-face::after,
+.agent-card[data-distance='0'] .agent-card-face::before,
+.agent-card[data-distance='0'] .agent-card-face::after,
+.agent-motion-card-slot--active .agent-card-face::before,
+.agent-motion-card-slot--active .agent-card-face::after {
+  opacity: 1 !important;
+}
+
+.agent-carousel--mobile-motion-rebuild .agent-motion-card-slot--active .agent-card-face,
+.agent-carousel--mobile-motion-rebuild.agent-carousel--dragging .agent-motion-card-slot--active .agent-card-face {
+  box-shadow:
+    0 44px 104px rgba(15, 23, 42, 0.25),
+    0 20px 42px rgba(15, 23, 42, 0.145),
+    0 30px 38px -24px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-card--home-selected .agent-card-inner,
+  .agent-card[data-distance='0'] .agent-card-inner,
+  .agent-motion-card-slot--active .agent-card-inner {
+    transition: none !important;
+  }
+}
+

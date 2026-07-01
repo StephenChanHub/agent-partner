@@ -474,6 +474,7 @@ export function HomePage() {
         dragX={dragX}
         showStartButton
         allowMediaSwipe
+        className={isActive ? "agent-card--home-selected" : undefined}
         onStart={() => navigateToChat(agent.id)}
       />
     ));
@@ -522,7 +523,12 @@ export function HomePage() {
             showStartButton
             allowMediaSwipe={false}
             mode="standalone"
-            className="agent-card--motion-contained"
+            className={[
+              "agent-card--motion-contained",
+              isActive ? "agent-card--home-selected" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             onStart={() => navigateToChat(agent.id)}
           />
         </motion.div>
