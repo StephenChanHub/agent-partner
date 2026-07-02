@@ -1,4 +1,9 @@
-import { apiGet } from '../utils/apiClient';
+import { apiGet, apiPost } from '../utils/apiClient';
+
+export type ApiPage<T> = {
+  items: T[];
+  pagination: { page: number; pageSize: number; total: number };
+};
 
 export type ApiRechargePackage = {
   id: string;
@@ -12,6 +17,49 @@ export type ApiRechargePackage = {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ApiRechargeOrder = {
+  id: string;
+  orderNo: string;
+  userId: string;
+  userEmail: string;
+  amountRmb: number;
+  currency: string;
+  agentTokens: number;
+  status: 'PENDING' | 'PAID' | 'EXPIRED';
+  paymentProvider: string;
+  paymentMethod: string;
+  paymentTradeNo?: string;
+  paymentPayload?: Record<string, unknown> | null;
+  expiresAt: string;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiTokenTransaction = {
+  id: string;
+  userId: string;
+  userEmail: string;
+  type: 'RECHARGE' | 'USAGE' | 'ADMIN_RECHARGE' | 'ADMIN_ADJUST' | 'REFUND' | 'GIFT';
+  direction: 'CREDIT' | 'DEBIT';
+  amountTokens: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  relatedOrderId?: string | null;
+  description?: string;
+  createdAt: string;
+};
+
+export type ApiUsageBalance = {
+  balanceAgentTokens: number;
+  usedAgentTokens: number;
+  billingMode: string;
+  minimumTextBalance: number;
+  minimumVoiceBalance: number;
+  canUseTextChat: boolean;
+  canUseVoiceChat: boolean;
 };
 
 export type ApiBillingPricing = {
@@ -38,15 +86,19 @@ export type ApiBillingPricing = {
 };
 
 export const walletApi = {
+  getBalance: () => apiGet<ApiUsageBalance>('/me/usage'),
   getPackages: () => apiGet<ApiRechargePackage[]>('/billing/packages'),
   getPricing: () => apiGet<ApiBillingPricing>('/billing/pricing'),
+  createRechargeOrder: (packageId: string) => apiPost<ApiRechargeOrder>('/billing/recharge-orders', { packageId }),
+  listRechargeOrders: () => apiGet<ApiPage<ApiRechargeOrder>>('/billing/recharge-orders'),
+  listTokenTransactions: () => apiGet<ApiPage<ApiTokenTransaction>>('/billing/transactions'),
 };
 
 /**
  * Wallet API readiness layer.
  *
- * V1.8.34 — packages and pricing snapshot are wired to the backend so admin pricing-rule CRUD
- * immediately affects the client-visible pricing information and backend usage metering.
+ * V1.8.35 — recharge orders now use a manual admin confirmation flow:
+ * client Payed => PENDING order, admin Confirm => balance credit, pending orders expire after 5 minutes.
  */
 export const walletApiContract = {
   getBalance: 'GET /me/usage',
@@ -54,7 +106,6 @@ export const walletApiContract = {
   getPackages: 'GET /billing/packages',
   createRechargeOrder: 'POST /billing/recharge-orders',
   listRechargeOrders: 'GET /billing/recharge-orders',
-  mockPayRechargeOrder: 'POST /billing/recharge-orders/{id}/mock-pay',
   listTokenTransactions: 'GET /billing/transactions',
 } as const;
 

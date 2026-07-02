@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { updateUserSession, useUserSession } from '../state/userSession';
 import { walletApi } from '../api/walletApi';
-import type { ApiBillingPricing, ApiRechargePackage } from '../api/walletApi';
+import type { ApiBillingPricing, ApiRechargeOrder, ApiRechargePackage, ApiTokenTransaction } from '../api/walletApi';
 import './WalletPage.css';
 
 type RechargePackage = {
@@ -15,10 +15,13 @@ type RechargePackage = {
 
 type RechargeOrder = {
   id: string;
+  orderNo: string;
   createdAt: string;
   amountRmb: number;
   tokens: number;
-  status: 'PENDING' | 'PAID';
+  status: 'PENDING' | 'PAID' | 'EXPIRED';
+  expiresAt: string;
+  paidAt?: string | null;
 };
 
 type TokenTransaction = {
@@ -54,17 +57,29 @@ function mapApiPackages(apiPackages: ApiRechargePackage[]): RechargePackage[] {
   }));
 }
 
-const initialOrders: RechargeOrder[] = [
-  { id: 'RO-20260630-0003', createdAt: 'Today 21:18', amountRmb: 10, tokens: 10000, status: 'PAID' },
-  { id: 'RO-20260630-0002', createdAt: 'Today 20:42', amountRmb: 30, tokens: 33000, status: 'PENDING' },
-  { id: 'RO-20260629-0001', createdAt: 'Yesterday 16:08', amountRmb: 5, tokens: 5000, status: 'PAID' },
-];
+function mapApiOrders(apiOrders: ApiRechargeOrder[]): RechargeOrder[] {
+  return apiOrders.map((order) => ({
+    id: order.id,
+    orderNo: order.orderNo || order.id,
+    createdAt: order.createdAt,
+    amountRmb: order.amountRmb,
+    tokens: order.agentTokens,
+    status: order.status,
+    expiresAt: order.expiresAt,
+    paidAt: order.paidAt,
+  }));
+}
 
-const initialTransactions: TokenTransaction[] = [
-  { id: 'TX-1005', createdAt: 'Today 21:18', title: 'Recharge order paid', direction: 'CREDIT', amount: 10000, balanceAfter: 10000 },
-  { id: 'TX-1004', createdAt: 'Today 20:55', title: 'Voice chat usage', direction: 'DEBIT', amount: 55, balanceAfter: 0 },
-  { id: 'TX-1003', createdAt: 'Yesterday 16:08', title: 'Admin manual recharge', direction: 'CREDIT', amount: 5000, balanceAfter: 5000 },
-];
+function mapApiTransactions(apiTransactions: ApiTokenTransaction[]): TokenTransaction[] {
+  return apiTransactions.map((transaction) => ({
+    id: transaction.id,
+    createdAt: transaction.createdAt,
+    title: transaction.description || transaction.type,
+    direction: transaction.direction,
+    amount: transaction.amountTokens,
+    balanceAfter: transaction.balanceAfter,
+  }));
+}
 
 function goBack() {
   if (window.history.length > 1) {
@@ -81,6 +96,25 @@ function formatTokens(value: number) {
 
 function formatTokenWheelValue(value: number) {
   return String(Math.max(0, Math.floor(value)));
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function getOrderStatusText(status: RechargeOrder['status']) {
+  if (status === 'PAID') return '已到账';
+  if (status === 'EXPIRED') return '已取消';
+  return '待管理员确认';
+}
+
+function getOrderStatusClass(status: RechargeOrder['status']) {
+  if (status === 'PAID') return 'order-status-paid';
+  if (status === 'EXPIRED') return 'order-status-expired';
+  return 'order-status-pending';
 }
 
 const wheelDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -121,8 +155,8 @@ function RollingTokens({ value }: { value: number }) {
 
 export function WalletPage() {
   const session = useUserSession();
-  const [orders, setOrders] = useState(initialOrders);
-  const [transactions, setTransactions] = useState(initialTransactions);
+  const [orders, setOrders] = useState<RechargeOrder[]>([]);
+  const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
   const [balance, setBalance] = useState(session.tokens);
   const [packages, setPackages] = useState<RechargePackage[]>([]);
   const [pricing, setPricing] = useState<ApiBillingPricing | null>(null);
@@ -132,6 +166,23 @@ export function WalletPage() {
   const [payModalPackage, setPayModalPackage] = useState<RechargePackage | null>(null);
   const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'info' | 'error' | 'success'; text: string } | null>(null);
+
+  const pendingOrder = orders.find((order) => order.status === 'PENDING');
+
+  const refreshWalletData = useCallback(async () => {
+    const [apiOrders, apiTransactions, usage] = await Promise.all([
+      walletApi.listRechargeOrders(),
+      walletApi.listTokenTransactions(),
+      walletApi.getBalance(),
+    ]);
+    const nextBalance = usage.balanceAgentTokens;
+    setOrders(mapApiOrders(apiOrders.items));
+    setTransactions(mapApiTransactions(apiTransactions.items));
+    setBalance(nextBalance);
+    updateUserSession({ tokens: nextBalance });
+  }, []);
 
   useEffect(() => {
     if (payModalPackage) {
@@ -144,16 +195,26 @@ export function WalletPage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([walletApi.getPackages(), walletApi.getPricing()]).then(([apiPackages, apiPricing]) => {
+    Promise.all([
+      walletApi.getPackages(),
+      walletApi.getPricing(),
+      walletApi.listRechargeOrders(),
+      walletApi.listTokenTransactions(),
+      walletApi.getBalance(),
+    ]).then(([apiPackages, apiPricing, apiOrders, apiTransactions, usage]) => {
       if (cancelled) return;
       const mapped = mapApiPackages(apiPackages);
       setPackages(mapped);
       setPricing(apiPricing);
+      setOrders(mapApiOrders(apiOrders.items));
+      setTransactions(mapApiTransactions(apiTransactions.items));
+      setBalance(usage.balanceAgentTokens);
+      updateUserSession({ tokens: usage.balanceAgentTokens });
       if (mapped.length > 0 && !activePackageId) {
         setActivePackageId(mapped[0].id);
       }
     }).catch(() => {
-      // Fallback: keep using empty state; recharge grid will show nothing
+      if (!cancelled) setNotice({ type: 'error', text: '钱包数据加载失败，请确认后端服务已启动。' });
     }).finally(() => {
       if (!cancelled) setPackagesLoading(false);
     });
@@ -162,58 +223,49 @@ export function WalletPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const creditBalance = (tokens: number, title: string) => {
-    setBalance((currentBalance) => {
-      const nextBalance = currentBalance + tokens;
-      updateUserSession({ tokens: nextBalance });
-      setTransactions((current) => [
-        {
-          id: `TX-SANDBOX-${String(Date.now()).slice(-6)}`,
-          createdAt: 'Just now',
-          title,
-          direction: 'CREDIT',
-          amount: tokens,
-          balanceAfter: nextBalance,
-        },
-        ...current,
-      ]);
-      return nextBalance;
-    });
-  };
-
-  const createMockOrder = (pkg: RechargePackage) => {
-    const now = Date.now();
-    const nextOrder: RechargeOrder = {
-      id: `RO-SANDBOX-${String(now).slice(-6)}`,
-      createdAt: 'Just now',
-      amountRmb: pkg.amountRmb,
-      tokens: pkg.tokens,
-      status: 'PAID',
-    };
-    setOrders((current) => [nextOrder, ...current]);
-    creditBalance(pkg.tokens, `Mock recharge paid ${nextOrder.id}`);
-  };
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshWalletData().catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [refreshWalletData]);
 
   const handlePackageClick = (item: RechargePackage) => {
     setActivePackageId(item.id);
     setSelectedPaymentId(null);
     setCopied(false);
+    setNotice(null);
     setPayModalPackage(item);
   };
 
-  const handlePayConfirmed = () => {
-    if (!payModalPackage) return;
-    createMockOrder(payModalPackage);
-    setPayModalPackage(null);
-    setCopied(false);
-  };
+  const handlePayConfirmed = async () => {
+    if (!payModalPackage || submittingOrder) return;
+    if (pendingOrder) {
+      setNotice({ type: 'error', text: `你有未处理完成的充值订单 ${pendingOrder.orderNo}，请等待管理员确认或 5 分钟自动取消后再下单。` });
+      setActiveTab('orders');
+      setPayModalPackage(null);
+      return;
+    }
 
-  const mockPayOrder = (order: RechargeOrder) => {
-    if (order.status === 'PAID') return;
-    setOrders((current) =>
-      current.map((item) => (item.id === order.id ? { ...item, status: 'PAID' } : item)),
-    );
-    creditBalance(order.tokens, `Recharge paid ${order.id}`);
+    setSubmittingOrder(true);
+    try {
+      const order = await walletApi.createRechargeOrder(payModalPackage.id);
+      setOrders((current) => [mapApiOrders([order])[0], ...current]);
+      setActiveTab('orders');
+      setNotice({ type: 'success', text: `订单 ${order.orderNo} 已提交，状态为 Pending。管理员确认后 Tokens 将自动到账；5 分钟未处理会自动取消。` });
+      setPayModalPackage(null);
+      setCopied(false);
+      await refreshWalletData();
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('未处理')
+        ? error.message
+        : '你有未处理完成的充值订单，请先等待管理员确认或订单自动取消后再下单。';
+      setNotice({ type: 'error', text: message });
+      setActiveTab('orders');
+      await refreshWalletData().catch(() => undefined);
+    } finally {
+      setSubmittingOrder(false);
+    }
   };
 
   return (
@@ -234,13 +286,25 @@ export function WalletPage() {
         <h1><span className="wallet-token-word">Tokens</span><span className="wallet-token-colon">：</span><RollingTokens value={balance} /></h1>
       </section>
 
+      {notice ? (
+        <div className={`wallet-notice wallet-notice--${notice.type}`} role="status">
+          {notice.text}
+        </div>
+      ) : null}
+
       <section className="wallet-section" aria-labelledby="recharge-title">
         <div className="wallet-section-heading">
           <h2 id="recharge-title">Recharge</h2>
           <span>{pricing ? `Live pricing · ¥1 = ${formatTokens(pricing.agentTokensPerRmb)} Tokens · text min ${formatTokens(pricing.minimumTextBalance)}` : 'Loading live pricing...'}</span>
         </div>
 
-        <div className="recharge-grid">
+        {pendingOrder ? (
+          <p className="wallet-pending-hint">
+            当前有待处理订单 {pendingOrder.orderNo}，管理员确认后自动到账；若 5 分钟未确认，系统会自动取消。
+          </p>
+        ) : null}
+
+        <div className="recharge-grid" aria-busy={packagesLoading}>
           {packages.map((item) => (
             <button
               key={item.id}
@@ -270,32 +334,29 @@ export function WalletPage() {
 
         {activeTab === 'orders' ? (
           <div className="record-list">
+            {orders.length === 0 ? <p className="wallet-empty-record">暂无充值订单。</p> : null}
             {orders.map((order) => (
               <article className="record-card" key={order.id}>
                 <div>
-                  <strong>{order.id}</strong>
-                  <span>{order.createdAt}</span>
+                  <strong>{order.orderNo}</strong>
+                  <span>{formatDateTime(order.createdAt)}</span>
+                  {order.status === 'PENDING' ? <span>自动取消时间：{formatDateTime(order.expiresAt)}</span> : null}
                 </div>
                 <div className="record-right">
                   <b>¥{order.amountRmb} / {formatTokens(order.tokens)}</b>
-                  {order.status === 'PENDING' ? (
-                    <button className="mock-pay-button" type="button" onClick={() => mockPayOrder(order)}>
-                      Mock pay
-                    </button>
-                  ) : (
-                    <em>Paid</em>
-                  )}
+                  <em className={`order-status-pill ${getOrderStatusClass(order.status)}`}>{getOrderStatusText(order.status)}</em>
                 </div>
               </article>
             ))}
           </div>
         ) : (
           <div className="record-list">
+            {transactions.length === 0 ? <p className="wallet-empty-record">暂无 Token 流水。</p> : null}
             {transactions.map((transaction) => (
               <article className="record-card" key={transaction.id}>
                 <div>
                   <strong>{transaction.title}</strong>
-                  <span>{transaction.createdAt} · {transaction.id}</span>
+                  <span>{formatDateTime(transaction.createdAt)} · {transaction.id}</span>
                 </div>
                 <div className="record-right">
                   <b className={transaction.direction === 'CREDIT' ? 'tokens-credit' : 'tokens-debit'}>
@@ -320,7 +381,6 @@ export function WalletPage() {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
           } catch {
-            // Fallback for older browsers
             const textarea = document.createElement('textarea');
             textarea.value = userEmail;
             textarea.style.position = 'fixed';
@@ -344,6 +404,7 @@ export function WalletPage() {
         };
 
         const handleClose = () => {
+          if (submittingOrder) return;
           setPayModalPackage(null);
           setSelectedPaymentId(null);
           setCopied(false);
@@ -421,15 +482,15 @@ export function WalletPage() {
                 </div>
 
                 <p className="pay-email-hint">
-                  为保障支付安全，请点击复制邮箱，并在付款页面粘贴填写，以完成身份二次确认。电脑端可直接扫码支付，移动端可长按二维码选择在支付宝/微信中打开支付。如没有显示跳转，请保存二维码图片后在支付宝/微信中打开支付。支付完成后回到本页面点击“Payed”按钮即可完成充值（五分钟内到账，未到账请联系公众号 DID Log客服）。
+                  为保障支付安全，请点击复制邮箱，并在付款页面粘贴填写，以完成身份二次确认。当前版本未接入真实支付宝/微信回调，点击 Payed 后会生成 Pending 订单并同步给管理员；管理员确认充值后 Tokens 自动到账，5 分钟未处理订单会自动取消。
                   <br />
-                  For payment security, please copy your email and paste it on the payment page to complete secondary identity verification.
+                  For payment security, please copy your email and paste it on the payment page. Payed submits a pending order for manual admin confirmation.
                 </p>
               </>
             ) : null}
 
             <div className="pay-modal-actions">
-              <button className="pay-btn-cancel" type="button" onClick={handleClose}>
+              <button className="pay-btn-cancel" type="button" onClick={handleClose} disabled={submittingOrder}>
                 Cancel
               </button>
               {isExpanded ? (
@@ -437,8 +498,9 @@ export function WalletPage() {
                   className="pay-btn-confirm"
                   type="button"
                   onClick={handlePayConfirmed}
+                  disabled={submittingOrder}
                 >
-                  Payed
+                  {submittingOrder ? 'Submitting...' : 'Payed'}
                 </button>
               ) : null}
             </div>

@@ -34,7 +34,7 @@ export class BillingController {
   async mockPay(@Param('id') id: string) { return ok(await this.orders.mockPay(id)); }
 
   @Get('transactions')
-  listTransactions(@Query() query: any) { const items = this.transactions.listForCurrentUser(query); return paginated(items, { total: items.length }); }
+  async listTransactions(@Query() query: any) { const items = await this.transactions.listForCurrentUser(query); return paginated(items, { total: items.length }); }
 
   @Post('payment/webhook/wechat')
   wechatWebhook() { return ok({ received: true, provider: 'WECHAT', implemented: false, mode: 'reserved' }); }

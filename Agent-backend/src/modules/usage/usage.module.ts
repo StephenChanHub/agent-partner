@@ -6,9 +6,10 @@ import { BillingGuardService } from './billing-guard.service';
 import { UsageRepository } from './repositories/usage.repository';
 import { PricingService } from './pricing.service';
 import { BillingModule } from '../billing/billing.module';
+import { PrismaModule } from '../../infrastructure/database/prisma.module';
 
 @Module({
-  imports: [BillingModule],
+  imports: [BillingModule, PrismaModule],
   controllers: [UsageController],
   providers: [UsageService, UsageMeterService, BillingGuardService, UsageRepository, PricingService],
   exports: [UsageService, UsageMeterService, BillingGuardService, PricingService],

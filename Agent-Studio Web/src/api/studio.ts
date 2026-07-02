@@ -59,6 +59,8 @@ export const studioApi = {
   deleteVoiceProfile: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/voice-profiles/${id}`),
 
   rechargeOrders: async (params?: Record<string, unknown>) => getPage<RechargeOrder>('/studio/recharge-orders', params),
+  confirmRechargeOrder: async (id: string) => postData<{ order: RechargeOrder; alreadyPaid: boolean }>(`/studio/recharge-orders/${id}/confirm`),
+  deleteRechargeOrder: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/recharge-orders/${id}`),
   tokenTransactions: async (params?: Record<string, unknown>) => getPage<TokenTransaction>('/studio/token-transactions', params),
   usageRecords: async (params?: Record<string, unknown>) => getPage<UsageRecord>('/studio/usage-records', params),
   pricing: async () => getData<Record<string, unknown>>('/billing/pricing'),

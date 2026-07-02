@@ -20,7 +20,7 @@ export class UsageController {
   }
 
   @Get('studio/users/:id/usage')
-  getUserUsage(@Param('id') userId: string) { return ok(this.usageService.getUserUsage(userId)); }
+  async getUserUsage(@Param('id') userId: string) { return ok(await this.usageService.getUserUsage(userId)); }
 
   @Get('studio/users/:id/usage-records')
   getUserUsageRecords(@Param('id') userId: string) { return ok(this.usageService.getUserUsageRecords(userId)); }

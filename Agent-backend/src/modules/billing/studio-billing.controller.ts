@@ -33,9 +33,19 @@ export class StudioBillingController {
     return ok(await this.orders.get(id));
   }
 
+  @Post('recharge-orders/:id/confirm')
+  async confirmRechargeOrder(@Param('id') id: string) {
+    return ok(await this.orders.confirmManualRecharge(id));
+  }
+
+  @Delete('recharge-orders/:id')
+  async deleteRechargeOrder(@Param('id') id: string) {
+    return ok(await this.orders.deleteOrder(id));
+  }
+
   @Get('token-transactions')
-  listTokenTransactions(@Query() query: any) {
-    const items = this.transactions.listAll(query);
+  async listTokenTransactions(@Query() query: any) {
+    const items = await this.transactions.listAll(query);
     return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), total: items.length });
   }
 
