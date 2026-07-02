@@ -31,9 +31,7 @@ export function UserAuthModal({ onClose, onLogin }: UserAuthModalProps) {
         </div>
 
         <div className="auth-heading">
-          <span>DID Agent Partner</span>
           <h2>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
-          <p>Sandbox login is pre-filled for local testing. The card is ready for real email verification and JWT login.</p>
         </div>
 
         <div className={`auth-mode-switch auth-mode-switch--${mode}`} role="tablist" aria-label="Authentication mode">
