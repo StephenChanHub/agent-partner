@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { updateUserSession, useUserSession } from '../state/userSession';
 import './WalletPage.css';
@@ -27,6 +27,18 @@ type TokenTransaction = {
   amount: number;
   balanceAfter: number;
 };
+
+type PaymentMethod = {
+  id: string;
+  name: string;
+  icon: string;
+};
+
+const paymentMethods: PaymentMethod[] = [
+  { id: 'alipay', name: 'Alipay', icon: '/alipay.svg' },
+  { id: 'wechat', name: 'WeChat Pay', icon: '/WeChat.svg' },
+  { id: 'paypal', name: 'PayPal', icon: '/PayPal.svg' },
+];
 
 const packages: RechargePackage[] = [
   { id: 'pkg_5', label: 'Starter', amountRmb: 5, tokens: 5000 },
@@ -107,11 +119,8 @@ export function WalletPage() {
   const [balance, setBalance] = useState(session.tokens);
   const [activePackageId, setActivePackageId] = useState(packages[1].id);
   const [activeTab, setActiveTab] = useState<'orders' | 'transactions'>('orders');
-
-  const selectedPackage = useMemo(
-    () => packages.find((item) => item.id === activePackageId) ?? packages[0],
-    [activePackageId],
-  );
+  const [payModalPackage, setPayModalPackage] = useState<RechargePackage | null>(null);
+  const [selectedPaymentId, setSelectedPaymentId] = useState(paymentMethods[0].id);
 
   const creditBalance = (tokens: number, title: string) => {
     setBalance((currentBalance) => {
@@ -132,17 +141,29 @@ export function WalletPage() {
     });
   };
 
-  const createMockOrder = () => {
+  const createMockOrder = (pkg: RechargePackage) => {
     const now = Date.now();
     const nextOrder: RechargeOrder = {
       id: `RO-SANDBOX-${String(now).slice(-6)}`,
       createdAt: 'Just now',
-      amountRmb: selectedPackage.amountRmb,
-      tokens: selectedPackage.tokens,
+      amountRmb: pkg.amountRmb,
+      tokens: pkg.tokens,
       status: 'PAID',
     };
     setOrders((current) => [nextOrder, ...current]);
-    creditBalance(selectedPackage.tokens, `Mock recharge paid ${nextOrder.id}`);
+    creditBalance(pkg.tokens, `Mock recharge paid ${nextOrder.id}`);
+  };
+
+  const handlePackageClick = (item: RechargePackage) => {
+    setActivePackageId(item.id);
+    setSelectedPaymentId(paymentMethods[0].id);
+    setPayModalPackage(item);
+  };
+
+  const handlePayConfirmed = () => {
+    if (!payModalPackage) return;
+    createMockOrder(payModalPackage);
+    setPayModalPackage(null);
   };
 
   const mockPayOrder = (order: RechargeOrder) => {
@@ -169,7 +190,6 @@ export function WalletPage() {
       <section className="wallet-balance-card" aria-label="Current token balance">
         <span className="wallet-eyebrow">Current balance</span>
         <h1><span className="wallet-token-word">Tokens</span><span className="wallet-token-colon">：</span><RollingTokens value={balance} /></h1>
-        <p>Sandbox wallet is using local mock data. The structure is ready for Core recharge order, payment callback, and token transaction APIs.</p>
       </section>
 
       <section className="wallet-section" aria-labelledby="recharge-title">
@@ -184,7 +204,7 @@ export function WalletPage() {
               key={item.id}
               className={`recharge-package ${item.id === activePackageId ? 'recharge-package--active' : ''}`}
               type="button"
-              onClick={() => setActivePackageId(item.id)}
+              onClick={() => handlePackageClick(item)}
             >
               {item.badge ? <span className="package-badge">{item.badge}</span> : null}
               <strong>{item.label}</strong>
@@ -194,9 +214,6 @@ export function WalletPage() {
           ))}
         </div>
 
-        <button className="create-order-button" type="button" onClick={createMockOrder}>
-          Create mock order
-        </button>
       </section>
 
       <section className="wallet-section wallet-records" aria-label="Wallet records">
@@ -249,6 +266,43 @@ export function WalletPage() {
           </div>
         )}
       </section>
+
+      {payModalPackage ? (
+        <div className="pay-modal-layer" role="presentation" onClick={() => setPayModalPackage(null)}>
+          <section
+            className="pay-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Select payment method"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="pay-modal-title">Please select a payment method:</h3>
+
+            <div className="pay-methods">
+              {paymentMethods.map((method) => (
+                <button
+                  key={method.id}
+                  className={`pay-method-row ${method.id === selectedPaymentId ? 'pay-method-row--selected' : ''}`}
+                  type="button"
+                  onClick={() => setSelectedPaymentId(method.id)}
+                >
+                  <img className="pay-method-icon" src={method.icon} alt={method.name} />
+                  <span className="pay-method-name">{method.name}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="pay-modal-actions">
+              <button className="pay-btn-cancel" type="button" onClick={() => setPayModalPackage(null)}>
+                Cancel
+              </button>
+              <button className="pay-btn-confirm" type="button" onClick={handlePayConfirmed}>
+                Payed
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
