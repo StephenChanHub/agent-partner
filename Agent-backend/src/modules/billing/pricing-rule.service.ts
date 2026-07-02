@@ -191,8 +191,6 @@ export class PricingRuleService {
   }
 
   private async ensureDefaultRulesSeeded() {
-    const count = await (this.prisma.db as any).pricingRule.count();
-    if (count > 0) return;
     await (this.prisma.db as any).pricingRule.createMany({
       data: defaultPricingRules.map((rule) => ({
         key: rule.key,

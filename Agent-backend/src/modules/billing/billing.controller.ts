@@ -19,19 +19,19 @@ export class BillingController {
   async pricing() { return ok(await this.billing.pricing()); }
 
   @Get('packages')
-  listPackages() { return ok(this.packages.listPackages()); }
+  async listPackages() { return ok(await this.packages.listPackages()); }
 
   @Post('recharge-orders')
-  createOrder(@Body() dto: CreateRechargeOrderDto) { return ok(this.orders.create(dto)); }
+  async createOrder(@Body() dto: CreateRechargeOrderDto) { return ok(await this.orders.create(dto)); }
 
   @Get('recharge-orders')
-  listOrders(@Query() query: any) { const items = this.orders.listForCurrentUser(query); return paginated(items, { total: items.length }); }
+  async listOrders(@Query() query: any) { const items = await this.orders.listForCurrentUser(query); return paginated(items, { total: items.length }); }
 
   @Get('recharge-orders/:id')
-  getOrder(@Param('id') id: string) { return ok(this.orders.getForCurrentUser(id)); }
+  async getOrder(@Param('id') id: string) { return ok(await this.orders.getForCurrentUser(id)); }
 
   @Post('recharge-orders/:id/mock-pay')
-  mockPay(@Param('id') id: string) { return ok(this.orders.mockPay(id)); }
+  async mockPay(@Param('id') id: string) { return ok(await this.orders.mockPay(id)); }
 
   @Get('transactions')
   listTransactions(@Query() query: any) { const items = this.transactions.listForCurrentUser(query); return paginated(items, { total: items.length }); }

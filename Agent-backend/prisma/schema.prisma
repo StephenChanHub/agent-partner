@@ -515,6 +515,25 @@ model UsageRecord {
 }
 
 
+
+model RechargePackage {
+  id              String                @id @default(uuid()) @db.Char(36)
+  name            String                @db.VarChar(128)
+  amountRmb       Decimal               @map("amount_rmb") @db.Decimal(12, 2)
+  baseTokens      BigInt                @map("base_tokens")
+  agentTokens     BigInt                @map("agent_tokens")
+  bonusTokens     BigInt                @default(0) @map("bonus_tokens")
+  discountPercent Decimal               @default(0) @map("discount_percent") @db.Decimal(8, 2)
+  status          ResourceProfileStatus @default(ACTIVE)
+  sortOrder       Int                   @default(100) @map("sort_order")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  @@index([status, sortOrder])
+  @@index([amountRmb])
+  @@map("recharge_packages")
+}
+
 model RechargeOrder {
   id              String              @id @default(uuid()) @db.Char(36)
   orderNo         String              @unique @map("order_no") @db.VarChar(64)

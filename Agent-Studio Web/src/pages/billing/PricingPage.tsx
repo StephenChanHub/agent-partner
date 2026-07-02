@@ -36,6 +36,13 @@ export function PricingPage() {
   const pricing = useQuery({ queryKey: ['pricing'], queryFn: studioApi.pricing });
   const packages = useQuery({ queryKey: ['packages'], queryFn: studioApi.packages });
   const rules = useQuery({ queryKey: ['pricing-rules'], queryFn: studioApi.pricingRules });
+  const pricingSnapshot: any = pricing.data ?? {};
+  const agentTokensPerRmb = Number(pricingSnapshot.agentTokensPerRmb ?? 0);
+  const packageAmountRmb = Form.useWatch('amountRmb', packageForm);
+  const packageAgentTokens = Form.useWatch('agentTokens', packageForm);
+  const previewBaseTokens = Math.round(Number(packageAmountRmb ?? 0) * agentTokensPerRmb);
+  const previewBonusTokens = Math.max(Math.round(Number(packageAgentTokens ?? 0)) - previewBaseTokens, 0);
+  const previewDiscountPercent = previewBaseTokens > 0 ? Math.round((previewBonusTokens / previewBaseTokens) * 10000) / 100 : 0;
 
   const refreshPackages = () => queryClient.invalidateQueries({ queryKey: ['packages'] });
   const refreshRules = () => queryClient.invalidateQueries({ queryKey: ['pricing-rules'] });
@@ -98,6 +105,7 @@ export function PricingPage() {
       ruleForm.resetFields();
       await refreshRules();
       await queryClient.invalidateQueries({ queryKey: ['pricing'] });
+      await refreshPackages();
     },
     onError: (error) => message.error(error instanceof Error ? error.message : '保存失败'),
   });
@@ -108,11 +116,13 @@ export function PricingPage() {
       message.success('计费规则已删除');
       await refreshRules();
       await queryClient.invalidateQueries({ queryKey: ['pricing'] });
+      await refreshPackages();
     },
     onError: (error) => message.error(error instanceof Error ? error.message : '删除失败'),
   });
 
   const openPackageForm = (record?: RechargePackage) => {
+    const rate = agentTokensPerRmb;
     setEditingPackage(record ?? null);
     setPackageModalOpen(true);
     packageForm.setFieldsValue(record ? {
@@ -124,7 +134,7 @@ export function PricingPage() {
     } : {
       name: '',
       amountRmb: 10,
-      agentTokens: 10000,
+      agentTokens: Math.round(10 * rate),
       status: true,
       sortOrder: 100,
     });
@@ -213,8 +223,6 @@ export function PricingPage() {
     },
   ];
 
-  const data: any = pricing.data ?? {};
-
   return <div>
     <PageHeader
       title="Pricing"
@@ -227,7 +235,7 @@ export function PricingPage() {
           <Space direction="vertical" size={6}>
             <Typography.Text strong>当前生效规则快照</Typography.Text>
             <Typography.Text type="secondary">
-              兑换比例：{data.agentTokensPerRmb ?? 1000} Agent Tokens / RMB ｜ 计费倍率：{data.billingMultiplier ?? 1.5} ｜ 文字最低余额：{fmtTokens(data.minimumTextBalance)} ｜ 语音最低余额：{fmtTokens(data.minimumVoiceBalance)}
+              兑换比例：{pricing.isLoading ? '加载中' : `${fmtTokens(agentTokensPerRmb)} / RMB`} ｜ 计费倍率：{pricingSnapshot.billingMultiplier ?? '加载中'} ｜ 文字最低余额：{pricingSnapshot.minimumTextBalance !== undefined ? fmtTokens(pricingSnapshot.minimumTextBalance) : '加载中'} ｜ 语音最低余额：{pricingSnapshot.minimumVoiceBalance !== undefined ? fmtTokens(pricingSnapshot.minimumVoiceBalance) : '加载中'}
             </Typography.Text>
           </Space>
         </Card>
@@ -243,7 +251,7 @@ export function PricingPage() {
             {
               key: 'packages',
               label: '充值套餐 CRUD',
-              children: <Card className="ios-card" title="充值套餐 CRUD + 折扣快捷操作" extra={<Button type="primary" onClick={() => openPackageForm()}>新建套餐</Button>}><Table rowKey="id" loading={packages.isLoading} dataSource={packages.data ?? []} columns={packageColumns} scroll={{ x: 1080 }} /></Card>,
+              children: <Card className="ios-card" title="充值套餐 CRUD + 折扣快捷操作" extra={<Button type="primary" disabled={agentTokensPerRmb <= 0} onClick={() => openPackageForm()}>新建套餐</Button>}><Table rowKey="id" loading={packages.isLoading} dataSource={packages.data ?? []} columns={packageColumns} scroll={{ x: 1080 }} /></Card>,
             },
           ]}
         />
@@ -260,8 +268,9 @@ export function PricingPage() {
     >
       <Form form={packageForm} layout="vertical" onFinish={(values) => savePackageMutation.mutate(values)}>
         <Form.Item name="name" label="套餐名称" rules={[{ required: true }]}><Input placeholder="¥10 基础包" /></Form.Item>
-        <Form.Item name="amountRmb" label="金额 RMB" rules={[{ required: true }]}><InputNumber min={1} precision={2} style={{ width: '100%' }} /></Form.Item>
+        <Form.Item name="amountRmb" label="金额 RMB" rules={[{ required: true }]}><InputNumber min={1} precision={2} style={{ width: '100%' }} onChange={(value) => { const amount = Number(value ?? 0); if (amount > 0 && agentTokensPerRmb > 0) packageForm.setFieldsValue({ agentTokens: Math.round(amount * agentTokensPerRmb) }); }} /></Form.Item>
         <Form.Item name="agentTokens" label="Agent Tokens" rules={[{ required: true }]}><InputNumber min={1} precision={0} style={{ width: '100%' }} /></Form.Item>
+        <Typography.Text type="secondary">当前兑换比例：{agentTokensPerRmb > 0 ? `${fmtTokens(agentTokensPerRmb)} / RMB` : '加载中'}；基础 Tokens：{fmtTokens(previewBaseTokens)}；预计赠送：{fmtTokens(previewBonusTokens)}{previewDiscountPercent > 0 ? `（+${previewDiscountPercent}%）` : ''}</Typography.Text>
         <Form.Item name="sortOrder" label="排序"><InputNumber min={1} precision={0} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="status" label="启用" valuePropName="checked"><Switch /></Form.Item>
       </Form>

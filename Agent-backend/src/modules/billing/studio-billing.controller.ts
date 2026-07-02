@@ -23,14 +23,14 @@ export class StudioBillingController {
   }
 
   @Get('recharge-orders')
-  listRechargeOrders(@Query() query: any) {
-    const items = this.orders.listAll(query);
+  async listRechargeOrders(@Query() query: any) {
+    const items = await this.orders.listAll(query);
     return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), total: items.length });
   }
 
   @Get('recharge-orders/:id')
-  getRechargeOrder(@Param('id') id: string) {
-    return ok(this.orders.get(id));
+  async getRechargeOrder(@Param('id') id: string) {
+    return ok(await this.orders.get(id));
   }
 
   @Get('token-transactions')
@@ -40,28 +40,28 @@ export class StudioBillingController {
   }
 
   @Get('billing/packages')
-  listPackages() {
-    return ok(this.packages.listPackages());
+  async listPackages() {
+    return ok(await this.packages.listPackages({ includeDisabled: true }));
   }
 
   @Post('billing/packages')
-  createPackage(@Body() dto: any) {
-    return ok(this.packages.createPackage(dto));
+  async createPackage(@Body() dto: any) {
+    return ok(await this.packages.createPackage(dto));
   }
 
   @Patch('billing/packages/:id')
-  updatePackage(@Param('id') id: string, @Body() dto: any) {
-    return ok(this.packages.updatePackage(id, dto));
+  async updatePackage(@Param('id') id: string, @Body() dto: any) {
+    return ok(await this.packages.updatePackage(id, dto));
   }
 
   @Delete('billing/packages/:id')
-  deletePackage(@Param('id') id: string) {
-    return ok(this.packages.deletePackage(id));
+  async deletePackage(@Param('id') id: string) {
+    return ok(await this.packages.deletePackage(id));
   }
 
   @Post('billing/packages/:id/discount')
-  applyPackageDiscount(@Param('id') id: string, @Body() dto: any) {
-    return ok(this.packages.applyDiscount(id, dto));
+  async applyPackageDiscount(@Param('id') id: string, @Body() dto: any) {
+    return ok(await this.packages.applyDiscount(id, dto));
   }
 
 
