@@ -16,7 +16,7 @@ export class BillingController {
   ) {}
 
   @Get('pricing')
-  pricing() { return ok(this.billing.pricing()); }
+  async pricing() { return ok(await this.billing.pricing()); }
 
   @Get('packages')
   listPackages() { return ok(this.packages.listPackages()); }

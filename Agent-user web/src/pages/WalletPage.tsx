@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { updateUserSession, useUserSession } from '../state/userSession';
 import { walletApi } from '../api/walletApi';
+import type { ApiBillingPricing, ApiRechargePackage } from '../api/walletApi';
 import './WalletPage.css';
 
 type RechargePackage = {
@@ -43,7 +44,7 @@ const paymentMethods: PaymentMethod[] = [
   { id: 'paypal', name: 'PayPal', icon: '/PayPal.svg', qrImage: '/PayPal.svg', deeplink: 'https://www.paypal.com/' },
 ];
 
-function mapApiPackages(apiPackages: import('../api/walletApi').ApiRechargePackage[]): RechargePackage[] {
+function mapApiPackages(apiPackages: ApiRechargePackage[]): RechargePackage[] {
   return apiPackages.map((pkg) => ({
     id: pkg.id,
     label: pkg.name,
@@ -124,6 +125,7 @@ export function WalletPage() {
   const [transactions, setTransactions] = useState(initialTransactions);
   const [balance, setBalance] = useState(session.tokens);
   const [packages, setPackages] = useState<RechargePackage[]>([]);
+  const [pricing, setPricing] = useState<ApiBillingPricing | null>(null);
   const [packagesLoading, setPackagesLoading] = useState(true);
   const [activePackageId, setActivePackageId] = useState('');
   const [activeTab, setActiveTab] = useState<'orders' | 'transactions'>('orders');
@@ -142,10 +144,11 @@ export function WalletPage() {
 
   useEffect(() => {
     let cancelled = false;
-    walletApi.getPackages().then((apiPackages) => {
+    Promise.all([walletApi.getPackages(), walletApi.getPricing()]).then(([apiPackages, apiPricing]) => {
       if (cancelled) return;
       const mapped = mapApiPackages(apiPackages);
       setPackages(mapped);
+      setPricing(apiPricing);
       if (mapped.length > 0 && !activePackageId) {
         setActivePackageId(mapped[0].id);
       }
@@ -234,7 +237,7 @@ export function WalletPage() {
       <section className="wallet-section" aria-labelledby="recharge-title">
         <div className="wallet-section-heading">
           <h2 id="recharge-title">Recharge</h2>
-          <span>Mock payment · production API reserved</span>
+          <span>{pricing ? `Live pricing · ¥1 = ${formatTokens(pricing.agentTokensPerRmb)} Tokens · text min ${formatTokens(pricing.minimumTextBalance)}` : 'Loading live pricing...'}</span>
         </div>
 
         <div className="recharge-grid">

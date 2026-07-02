@@ -38,7 +38,7 @@ export class RuntimeService {
       maxOutputTokens: 512,
     });
 
-    const usage = this.usageMeter.fromDeepSeekUsage(
+    const usage = await this.usageMeter.fromDeepSeekUsage(
       llmResult.usage?.inputTokens ?? 1000,
       llmResult.usage?.outputTokens ?? 200,
       0,
@@ -85,7 +85,7 @@ export class RuntimeService {
       format: 'mp3',
     });
 
-    const ttsUsage = this.usageMeter.fromTtsUsage(textResult.assistantMessage.content.length);
+    const ttsUsage = await this.usageMeter.fromTtsUsage(textResult.assistantMessage.content.length);
     const audioId = `mock-audio-${Date.now()}`;
 
     return {

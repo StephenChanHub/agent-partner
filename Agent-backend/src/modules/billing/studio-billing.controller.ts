@@ -67,23 +67,28 @@ export class StudioBillingController {
 
 
   @Get('billing/pricing-rules')
-  listPricingRules() {
-    return ok(this.pricingRules.listRules());
+  async listPricingRules() {
+    return ok(await this.pricingRules.listRules());
   }
 
   @Post('billing/pricing-rules')
-  createPricingRule(@Body() dto: any) {
-    return ok(this.pricingRules.createRule(dto));
+  async createPricingRule(@Body() dto: any) {
+    return ok(await this.pricingRules.createRule(dto));
+  }
+
+  @Get('billing/pricing-rules/:id')
+  async getPricingRule(@Param('id') id: string) {
+    return ok(await this.pricingRules.getRule(id));
   }
 
   @Patch('billing/pricing-rules/:id')
-  updatePricingRule(@Param('id') id: string, @Body() dto: any) {
-    return ok(this.pricingRules.updateRule(id, dto));
+  async updatePricingRule(@Param('id') id: string, @Body() dto: any) {
+    return ok(await this.pricingRules.updateRule(id, dto));
   }
 
   @Delete('billing/pricing-rules/:id')
-  deletePricingRule(@Param('id') id: string) {
-    return ok(this.pricingRules.deleteRule(id));
+  async deletePricingRule(@Param('id') id: string) {
+    return ok(await this.pricingRules.deleteRule(id));
   }
 
 }

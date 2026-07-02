@@ -7,20 +7,21 @@ import { PricingService } from './pricing.service';
 export class UsageService {
   constructor(private readonly pricingService: PricingService) {}
 
-  getMyUsage() {
+  async getMyUsage() {
     const user = mockUsers[0];
+    const pricing = await this.pricingService.getPricing();
     return {
       balanceAgentTokens: user.balanceTokens,
       usedAgentTokens: user.usedTokens,
       billingMode: process.env.BILLING_MODE ?? 'TRACK_ONLY',
-      minimumTextBalance: Number(process.env.TEXT_CHAT_MIN_BALANCE_AGENT_TOKENS ?? 100),
-      minimumVoiceBalance: Number(process.env.VOICE_CHAT_MIN_BALANCE_AGENT_TOKENS ?? 1000),
-      canUseTextChat: user.balanceTokens >= Number(process.env.TEXT_CHAT_MIN_BALANCE_AGENT_TOKENS ?? 100),
-      canUseVoiceChat: user.balanceTokens >= Number(process.env.VOICE_CHAT_MIN_BALANCE_AGENT_TOKENS ?? 1000),
+      minimumTextBalance: pricing.minimumTextBalance,
+      minimumVoiceBalance: pricing.minimumVoiceBalance,
+      canUseTextChat: user.balanceTokens >= pricing.minimumTextBalance,
+      canUseVoiceChat: user.balanceTokens >= pricing.minimumVoiceBalance,
     };
   }
 
-  getPricing() { return this.pricingService.getPricing(); }
+  async getPricing() { return this.pricingService.getPricing(); }
 
   getRechargePackages() { return { packages: mockRechargePackages }; }
 

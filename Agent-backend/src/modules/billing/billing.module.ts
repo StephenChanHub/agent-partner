@@ -10,8 +10,10 @@ import { MockPaymentService } from './mock-payment.service';
 import { AdminTokenAdjustmentService } from './admin-token-adjustment.service';
 import { RechargeOrderRepository } from './repositories/recharge-order.repository';
 import { AgentTokenTransactionRepository } from './repositories/agent-token-transaction.repository';
+import { PrismaModule } from '../../infrastructure/database/prisma.module';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [BillingController, StudioBillingController],
   providers: [
     BillingService,
@@ -24,6 +26,6 @@ import { AgentTokenTransactionRepository } from './repositories/agent-token-tran
     RechargeOrderRepository,
     AgentTokenTransactionRepository,
   ],
-  exports: [BillingService, RechargeOrderService, AgentTokenTransactionService, AdminTokenAdjustmentService],
+  exports: [BillingService, RechargeOrderService, AgentTokenTransactionService, AdminTokenAdjustmentService, PricingRuleService],
 })
 export class BillingModule {}

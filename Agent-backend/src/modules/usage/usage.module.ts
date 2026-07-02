@@ -5,8 +5,10 @@ import { UsageMeterService } from './usage-meter.service';
 import { BillingGuardService } from './billing-guard.service';
 import { UsageRepository } from './repositories/usage.repository';
 import { PricingService } from './pricing.service';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
+  imports: [BillingModule],
   controllers: [UsageController],
   providers: [UsageService, UsageMeterService, BillingGuardService, UsageRepository, PricingService],
   exports: [UsageService, UsageMeterService, BillingGuardService, PricingService],

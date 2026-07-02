@@ -5,8 +5,8 @@ import { PricingService } from './pricing.service';
 export class UsageMeterService {
   constructor(private readonly pricingService: PricingService) {}
 
-  fromDeepSeekUsage(inputTokens: number, outputTokens: number, cacheHitInputTokens = 0) {
-    const charge = this.pricingService.calculateDeepSeekCharge(inputTokens, outputTokens, cacheHitInputTokens);
+  async fromDeepSeekUsage(inputTokens: number, outputTokens: number, cacheHitInputTokens = 0) {
+    const charge = await this.pricingService.calculateDeepSeekCharge(inputTokens, outputTokens, cacheHitInputTokens);
     return {
       type: 'LLM_USAGE',
       inputTokens,
@@ -21,8 +21,8 @@ export class UsageMeterService {
     };
   }
 
-  fromTtsUsage(characters: number) {
-    const charge = this.pricingService.calculateElevenLabsCharge(characters);
+  async fromTtsUsage(characters: number) {
+    const charge = await this.pricingService.calculateElevenLabsCharge(characters);
     return {
       type: 'TTS_USAGE',
       ttsCharacters: characters,

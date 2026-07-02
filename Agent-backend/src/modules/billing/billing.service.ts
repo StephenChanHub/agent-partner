@@ -5,16 +5,28 @@ import { PricingRuleService } from './pricing-rule.service';
 export class BillingService {
   constructor(private readonly pricingRules: PricingRuleService) {}
 
-  pricing() {
-    const agentTokensPerRmb = this.pricingRules.numberValue('agentTokensPerRmb', 1000);
-    const billingMultiplier = this.pricingRules.numberValue('billingMultiplier', 1.5);
-    const textMin = this.pricingRules.numberValue('minimumTextBalance', 100);
-    const voiceMin = this.pricingRules.numberValue('minimumVoiceBalance', 1000);
-    const voiceReplyMaxChars = this.pricingRules.numberValue('voiceReplyMaxChars', 200);
-    const cacheHitInputRmbPerMillion = this.pricingRules.numberValue('deepseek.cacheHitInputRmbPerMillion', 0.02);
-    const cacheMissInputRmbPerMillion = this.pricingRules.numberValue('deepseek.cacheMissInputRmbPerMillion', 1);
-    const outputRmbPerMillion = this.pricingRules.numberValue('deepseek.outputRmbPerMillion', 2);
-    const ttsRmbPer100kCharacters = this.pricingRules.numberValue('elevenlabs.ttsRmbPer100kChars', 35);
+  async pricing() {
+    const rules = await this.pricingRules.valuesByKey({
+      agentTokensPerRmb: 1000,
+      billingMultiplier: 1.5,
+      minimumTextBalance: 100,
+      minimumVoiceBalance: 1000,
+      voiceReplyMaxChars: 200,
+      'deepseek.cacheHitInputRmbPerMillion': 0.02,
+      'deepseek.cacheMissInputRmbPerMillion': 1,
+      'deepseek.outputRmbPerMillion': 2,
+      'elevenlabs.ttsRmbPer100kChars': 35,
+    });
+
+    const agentTokensPerRmb = rules.agentTokensPerRmb;
+    const billingMultiplier = rules.billingMultiplier;
+    const textMin = rules.minimumTextBalance;
+    const voiceMin = rules.minimumVoiceBalance;
+    const voiceReplyMaxChars = rules.voiceReplyMaxChars;
+    const cacheHitInputRmbPerMillion = rules['deepseek.cacheHitInputRmbPerMillion'];
+    const cacheMissInputRmbPerMillion = rules['deepseek.cacheMissInputRmbPerMillion'];
+    const outputRmbPerMillion = rules['deepseek.outputRmbPerMillion'];
+    const ttsRmbPer100kCharacters = rules['elevenlabs.ttsRmbPer100kChars'];
 
     return {
       currency: 'AGENT_TOKENS',

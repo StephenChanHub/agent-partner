@@ -8,7 +8,7 @@ export class UsageController {
   constructor(private readonly usageService: UsageService) {}
 
   @Get('me/usage')
-  getMyUsage() { return ok(this.usageService.getMyUsage()); }
+  async getMyUsage() { return ok(await this.usageService.getMyUsage()); }
 
   @Get('me/usage-records')
   getMyUsageRecords() { return ok(this.usageService.getMyUsageRecords()); }

@@ -63,6 +63,7 @@ export const studioApi = {
   usageRecords: async (params?: Record<string, unknown>) => getPage<UsageRecord>('/studio/usage-records', params),
   pricing: async () => getData<Record<string, unknown>>('/billing/pricing'),
   pricingRules: async () => getData<PricingRule[]>('/studio/billing/pricing-rules'),
+  pricingRule: async (id: string) => getData<PricingRule>(`/studio/billing/pricing-rules/${id}`),
   createPricingRule: async (payload: Partial<PricingRule>) => postData<PricingRule>('/studio/billing/pricing-rules', payload),
   updatePricingRule: async (id: string, payload: Partial<PricingRule>) => patchData<PricingRule>(`/studio/billing/pricing-rules/${id}`, payload),
   deletePricingRule: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/billing/pricing-rules/${id}`),
