@@ -323,73 +323,9 @@ export const mockPricingRules = [
   },
 ];
 
-export const mockRechargePackages = [
-  {
-    id: 'pkg_5000',
-    name: '¥5 入门包',
-    amountRmb: 5,
-    baseTokens: 5000,
-    agentTokens: 5000,
-    bonusTokens: 0,
-    discountPercent: 0,
-    status: 'ACTIVE',
-    sortOrder: 10,
-    createdAt: '2026-06-01T10:00:00.000Z',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'pkg_10000',
-    name: '¥10 基础包',
-    amountRmb: 10,
-    baseTokens: 10000,
-    agentTokens: 10000,
-    bonusTokens: 0,
-    discountPercent: 0,
-    status: 'ACTIVE',
-    sortOrder: 20,
-    createdAt: '2026-06-01T10:00:00.000Z',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'pkg_30000',
-    name: '¥30 标准包',
-    amountRmb: 30,
-    baseTokens: 30000,
-    agentTokens: 33000,
-    bonusTokens: 3000,
-    discountPercent: 10,
-    status: 'ACTIVE',
-    sortOrder: 30,
-    createdAt: '2026-06-01T10:00:00.000Z',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'pkg_50000',
-    name: '¥50 进阶包',
-    amountRmb: 50,
-    baseTokens: 50000,
-    agentTokens: 60000,
-    bonusTokens: 10000,
-    discountPercent: 20,
-    status: 'ACTIVE',
-    sortOrder: 40,
-    createdAt: '2026-06-01T10:00:00.000Z',
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'pkg_100000',
-    name: '¥100 专业包',
-    amountRmb: 100,
-    baseTokens: 100000,
-    agentTokens: 130000,
-    bonusTokens: 30000,
-    discountPercent: 30,
-    status: 'ACTIVE',
-    sortOrder: 50,
-    createdAt: '2026-06-01T10:00:00.000Z',
-    updatedAt: new Date().toISOString(),
-  },
-];
+// Packages are managed through the admin Pricing page CRUD.
+// Start with an empty list — the admin creates all packages.
+export const mockRechargePackages: any[] = [];
 
 export const mockRechargeOrders = [
   {
