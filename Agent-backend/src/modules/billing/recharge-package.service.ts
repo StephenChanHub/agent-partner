@@ -12,7 +12,9 @@ type RechargePackageInput = {
 @Injectable()
 export class RechargePackageService {
   listPackages() {
-    return [...mockRechargePackages].sort((a, b) => (a.sortOrder ?? 100) - (b.sortOrder ?? 100));
+    return [...mockRechargePackages]
+      .filter((pkg) => pkg.status === 'ACTIVE')
+      .sort((a, b) => a.amountRmb - b.amountRmb);
   }
 
   getPackage(id: string) {

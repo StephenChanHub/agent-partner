@@ -1,9 +1,28 @@
+import { apiGet } from '../utils/apiClient';
+
+export type ApiRechargePackage = {
+  id: string;
+  name: string;
+  amountRmb: number;
+  baseTokens: number;
+  agentTokens: number;
+  bonusTokens: number;
+  discountPercent: number;
+  status: 'ACTIVE' | 'DISABLED';
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const walletApi = {
+  getPackages: () => apiGet<ApiRechargePackage[]>('/billing/packages'),
+};
+
 /**
  * Wallet API readiness layer.
  *
- * V1.8.17 still uses local mock state inside WalletPage, but the user-facing
- * page is intentionally aligned with these Core endpoints so production hookup
- * can replace local state without rewriting the page model.
+ * V1.8.33 — getPackages is wired to the real backend.
+ * Other endpoints are reserved for production hookup.
  */
 export const walletApiContract = {
   getBalance: 'GET /me/usage',

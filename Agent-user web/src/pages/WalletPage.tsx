@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { updateUserSession, useUserSession } from '../state/userSession';
+import { walletApi } from '../api/walletApi';
 import './WalletPage.css';
 
 type RechargePackage = {
@@ -32,20 +33,25 @@ type PaymentMethod = {
   id: string;
   name: string;
   icon: string;
+  qrImage: string;
+  deeplink: string;
 };
 
 const paymentMethods: PaymentMethod[] = [
-  { id: 'alipay', name: 'Alipay', icon: '/alipay.svg' },
-  { id: 'wechat', name: 'WeChat Pay', icon: '/WeChat.svg' },
-  { id: 'paypal', name: 'PayPal', icon: '/PayPal.svg' },
+  { id: 'alipay', name: 'Alipay', icon: '/alipay.svg', qrImage: '/Alipay.png', deeplink: 'alipays://platformapi/startapp?saId=10000007' },
+  { id: 'wechat', name: 'WeChat Pay', icon: '/WeChat.svg', qrImage: '/WeChatPay.png', deeplink: 'weixin://' },
+  { id: 'paypal', name: 'PayPal', icon: '/PayPal.svg', qrImage: '/PayPal.svg', deeplink: 'https://www.paypal.com/' },
 ];
 
-const packages: RechargePackage[] = [
-  { id: 'pkg_5', label: 'Starter', amountRmb: 5, tokens: 5000 },
-  { id: 'pkg_10', label: 'Daily', amountRmb: 10, tokens: 10000, badge: 'Popular' },
-  { id: 'pkg_30', label: 'Creator', amountRmb: 30, tokens: 33000, badge: '+10%' },
-  { id: 'pkg_50', label: 'Pro', amountRmb: 50, tokens: 60000, badge: '+20%' },
-];
+function mapApiPackages(apiPackages: import('../api/walletApi').ApiRechargePackage[]): RechargePackage[] {
+  return apiPackages.map((pkg) => ({
+    id: pkg.id,
+    label: pkg.name,
+    amountRmb: pkg.amountRmb,
+    tokens: pkg.agentTokens,
+    badge: pkg.discountPercent > 0 ? `+${pkg.discountPercent}%` : undefined,
+  }));
+}
 
 const initialOrders: RechargeOrder[] = [
   { id: 'RO-20260630-0003', createdAt: 'Today 21:18', amountRmb: 10, tokens: 10000, status: 'PAID' },
@@ -117,10 +123,41 @@ export function WalletPage() {
   const [orders, setOrders] = useState(initialOrders);
   const [transactions, setTransactions] = useState(initialTransactions);
   const [balance, setBalance] = useState(session.tokens);
-  const [activePackageId, setActivePackageId] = useState(packages[1].id);
+  const [packages, setPackages] = useState<RechargePackage[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(true);
+  const [activePackageId, setActivePackageId] = useState('');
   const [activeTab, setActiveTab] = useState<'orders' | 'transactions'>('orders');
   const [payModalPackage, setPayModalPackage] = useState<RechargePackage | null>(null);
-  const [selectedPaymentId, setSelectedPaymentId] = useState(paymentMethods[0].id);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (payModalPackage) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [payModalPackage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    walletApi.getPackages().then((apiPackages) => {
+      if (cancelled) return;
+      const mapped = mapApiPackages(apiPackages);
+      setPackages(mapped);
+      if (mapped.length > 0 && !activePackageId) {
+        setActivePackageId(mapped[0].id);
+      }
+    }).catch(() => {
+      // Fallback: keep using empty state; recharge grid will show nothing
+    }).finally(() => {
+      if (!cancelled) setPackagesLoading(false);
+    });
+    return () => { cancelled = true; };
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const creditBalance = (tokens: number, title: string) => {
     setBalance((currentBalance) => {
@@ -156,7 +193,8 @@ export function WalletPage() {
 
   const handlePackageClick = (item: RechargePackage) => {
     setActivePackageId(item.id);
-    setSelectedPaymentId(paymentMethods[0].id);
+    setSelectedPaymentId(null);
+    setCopied(false);
     setPayModalPackage(item);
   };
 
@@ -164,6 +202,7 @@ export function WalletPage() {
     if (!payModalPackage) return;
     createMockOrder(payModalPackage);
     setPayModalPackage(null);
+    setCopied(false);
   };
 
   const mockPayOrder = (order: RechargeOrder) => {
@@ -267,8 +306,52 @@ export function WalletPage() {
         )}
       </section>
 
-      {payModalPackage ? (
-        <div className="pay-modal-layer" role="presentation" onClick={() => setPayModalPackage(null)}>
+      {payModalPackage ? (() => {
+        const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentId) ?? null;
+        const isExpanded = selectedPaymentId !== null;
+        const userEmail = session.email;
+
+        const handleCopyEmail = async () => {
+          try {
+            await navigator.clipboard.writeText(userEmail);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          } catch {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = userEmail;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }
+        };
+
+        const handleMethodClick = (methodId: string) => {
+          if (selectedPaymentId === methodId) {
+            setSelectedPaymentId(null);
+            setCopied(false);
+          } else {
+            setSelectedPaymentId(methodId);
+          }
+        };
+
+        const handleClose = () => {
+          setPayModalPackage(null);
+          setSelectedPaymentId(null);
+          setCopied(false);
+        };
+
+        const visibleMethods = isExpanded
+          ? paymentMethods.filter((m) => m.id === selectedPaymentId)
+          : paymentMethods;
+
+        return (
+        <div className="pay-modal-layer" role="presentation" onClick={handleClose}>
           <section
             className="pay-modal-card"
             role="dialog"
@@ -278,13 +361,13 @@ export function WalletPage() {
           >
             <h3 className="pay-modal-title">Please select a payment method:</h3>
 
-            <div className="pay-methods">
-              {paymentMethods.map((method) => (
+            <div className={`pay-methods ${isExpanded ? 'pay-methods--collapsed' : ''}`}>
+              {visibleMethods.map((method) => (
                 <button
                   key={method.id}
                   className={`pay-method-row ${method.id === selectedPaymentId ? 'pay-method-row--selected' : ''}`}
                   type="button"
-                  onClick={() => setSelectedPaymentId(method.id)}
+                  onClick={() => handleMethodClick(method.id)}
                 >
                   <img className="pay-method-icon" src={method.icon} alt={method.name} />
                   <span className="pay-method-name">{method.name}</span>
@@ -292,17 +375,74 @@ export function WalletPage() {
               ))}
             </div>
 
+            {isExpanded && selectedMethod ? (
+              <>
+                <div className="pay-qr-section">
+                  <a
+                    className="pay-qr-link"
+                    href={selectedMethod.deeplink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      className="pay-qr-image"
+                      src={selectedMethod.qrImage}
+                      alt={`${selectedMethod.name} payment QR`}
+                    />
+                  </a>
+                </div>
+
+                <div className="pay-email-row">
+                  <span className="pay-email-label-text">Email</span>
+                  <div className="pay-email-input-wrap">
+                    <input
+                      className="pay-email-input" aria-label="Your email address for payment verification"
+                      type="email"
+                      value={userEmail}
+                      readOnly
+                    />
+                    <button
+                      className={`pay-copy-btn ${copied ? 'pay-copy-btn--copied' : ''}`}
+                      type="button"
+                      onClick={handleCopyEmail}
+                      aria-label="Copy email"
+                    >
+                      {copied ? '✓' : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="pay-email-hint">
+                  为保障支付安全，请点击复制邮箱，并在付款页面粘贴填写，以完成身份二次确认。电脑端可直接扫码支付，移动端可长按二维码选择在支付宝/微信中打开支付。如没有显示跳转，请保存二维码图片后在支付宝/微信中打开支付。支付完成后回到本页面点击“Payed”按钮即可完成充值（五分钟内到账，未到账请联系公众号 DID Log客服）。
+                  <br />
+                  For payment security, please copy your email and paste it on the payment page to complete secondary identity verification.
+                </p>
+              </>
+            ) : null}
+
             <div className="pay-modal-actions">
-              <button className="pay-btn-cancel" type="button" onClick={() => setPayModalPackage(null)}>
+              <button className="pay-btn-cancel" type="button" onClick={handleClose}>
                 Cancel
               </button>
-              <button className="pay-btn-confirm" type="button" onClick={handlePayConfirmed}>
-                Payed
-              </button>
+              {isExpanded ? (
+                <button
+                  className="pay-btn-confirm"
+                  type="button"
+                  onClick={handlePayConfirmed}
+                >
+                  Payed
+                </button>
+              ) : null}
             </div>
           </section>
         </div>
-      ) : null}
+        );
+      })() : null}
     </main>
   );
 }
