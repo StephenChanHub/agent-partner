@@ -1,48 +1,49 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
+let _apiBase: string | null = null;
 
-type ApiEnvelope<T> = {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: { code?: string; message?: string; details?: Record<string, unknown> };
-};
+function getApiBase(): string {
+  if (_apiBase) return _apiBase;
 
-type ApiError = Error & { status?: number; code?: string; details?: Record<string, unknown> };
-
-async function apiRequest<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-  const envelope = (await res.json().catch(() => ({}))) as ApiEnvelope<T> & Record<string, any>;
-  if (!res.ok || envelope.success === false) {
-    const rawMessage = envelope.error?.message || envelope.message || envelope.response?.message;
-    const nestedMessage = typeof rawMessage === 'object' && rawMessage !== null && 'message' in rawMessage
-      ? String((rawMessage as { message?: unknown }).message ?? '')
-      : '';
-    const message = typeof rawMessage === 'string'
-      ? rawMessage
-      : nestedMessage || `API ${path} failed: ${res.status}`;
-    const error = new Error(message) as ApiError;
-    error.status = res.status;
-    error.code = envelope.error?.code || envelope.response?.code || (typeof rawMessage === 'object' && rawMessage !== null && 'code' in rawMessage ? String((rawMessage as { code?: unknown }).code ?? '') : undefined);
-    error.details = envelope.error?.details || envelope.response || envelope;
-    throw error;
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // LAN access (e.g. phone on same network) — route to Mac's port 3000.
+    // Requires UTM port forward: Mac-IP:3000 → VM(192.168.64.2):3000
+    if (
+      hostname &&
+      hostname !== 'localhost' &&
+      hostname !== '127.0.0.1' &&
+      !hostname.startsWith('192.168.64.')
+    ) {
+      _apiBase = `${window.location.protocol}//${hostname}:3000/api`;
+      return _apiBase;
+    }
   }
 
-  return envelope.data as T;
+  // Local dev on the Mac — talk directly to the UTM VM.
+  _apiBase =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as any).env?.VITE_API_BASE_URL) ||
+    'http://192.168.64.2:3000/api';
+  return _apiBase;
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  return apiRequest<T>('GET', path);
+  const base = getApiBase();
+  const res = await fetch(`${base}${path}`);
+  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  const envelope = await res.json();
+  if (!envelope.success) throw new Error(envelope.message ?? 'API error');
+  return envelope.data as T;
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  return apiRequest<T>('POST', path, body ?? {});
-}
-
-export async function apiDelete<T>(path: string): Promise<T> {
-  return apiRequest<T>('DELETE', path);
+  const base = getApiBase();
+  const res = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  const envelope = await res.json();
+  if (!envelope.success) throw new Error(envelope.message ?? 'API error');
+  return envelope.data as T;
 }

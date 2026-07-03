@@ -1,6 +1,29 @@
 import { apiGet } from '../utils/apiClient';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
+let _mediaBase: string | null = null;
+
+function getMediaBase(): string {
+  if (_mediaBase) return _mediaBase;
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (
+      hostname &&
+      hostname !== 'localhost' &&
+      hostname !== '127.0.0.1' &&
+      !hostname.startsWith('192.168.64.')
+    ) {
+      _mediaBase = `${window.location.protocol}//${hostname}:3000/api`;
+      return _mediaBase;
+    }
+  }
+
+  _mediaBase =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as any).env?.VITE_API_BASE_URL) ||
+    'http://192.168.64.2:3000/api';
+  return _mediaBase;
+}
 
 export type HomeAgentMedia = {
   id: string;
@@ -39,7 +62,7 @@ type AgentRecord = {
 function resolveMediaUrl(url?: string) {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-  return `${API_BASE}${url.startsWith('/') ? url : `/${url}`}`;
+  return `${getMediaBase()}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 export const fallbackHomeAgents: HomeAgent[] = [
