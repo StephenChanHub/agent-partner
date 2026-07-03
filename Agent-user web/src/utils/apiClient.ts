@@ -1,49 +1,4 @@
-function normalizeApiBase(base: string) {
-  return base.replace(/\/+$/, '');
-}
-
-function isLocalHost(hostname: string) {
-  return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
-}
-
-function browserHostname() {
-  if (typeof window === 'undefined') return '';
-  return window.location.hostname;
-}
-
-function resolveApiBase() {
-  const explicitBase = String(import.meta.env.VITE_API_BASE_URL || '').trim();
-  const apiPort = String(import.meta.env.VITE_API_PORT || '3000').trim();
-  const apiPrefix = String(import.meta.env.VITE_API_PREFIX || 'api').replace(/^\/+|\/+$/g, '') || 'api';
-  const hostFromBrowser = browserHostname();
-
-  if (explicitBase) {
-    if (explicitBase.startsWith('/')) return normalizeApiBase(explicitBase);
-
-    try {
-      const parsed = new URL(explicitBase);
-      // A local API address works only on the developer's own machine. When the client is opened
-      // through a VM/server IP, transparently bind the API host to that same visible host so the
-      // user web always talks to the server instead of the visitor browser's localhost.
-      if (hostFromBrowser && !isLocalHost(hostFromBrowser) && isLocalHost(parsed.hostname)) {
-        parsed.hostname = hostFromBrowser;
-        return normalizeApiBase(parsed.toString());
-      }
-    } catch {
-      return normalizeApiBase(explicitBase);
-    }
-
-    return normalizeApiBase(explicitBase);
-  }
-
-  if (typeof window !== 'undefined' && hostFromBrowser) {
-    return `${window.location.protocol}//${hostFromBrowser}:${apiPort}/${apiPrefix}`;
-  }
-
-  return `http://192.168.64.2:${apiPort}/${apiPrefix}`;
-}
-
-export const API_BASE = resolveApiBase();
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -55,8 +10,7 @@ type ApiEnvelope<T> = {
 type ApiError = Error & { status?: number; code?: string; details?: Record<string, unknown> };
 
 async function apiRequest<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const res = await fetch(`${API_BASE}${normalizedPath}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
