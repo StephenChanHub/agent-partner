@@ -1,27 +1,45 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
+import { PricingRuleService } from '../billing/pricing-rule.service';
 
 @Injectable()
 export class BillingGuardService {
-  private readonly billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
-  private readonly minTextBalance = Number(process.env.TEXT_CHAT_MIN_BALANCE_AGENT_TOKENS ?? 100);
-  private readonly minVoiceBalance = Number(process.env.VOICE_CHAT_MIN_BALANCE_AGENT_TOKENS ?? 1000);
+  constructor(private readonly pricingRules: PricingRuleService) {}
+
+  private async getMinTextBalance(): Promise<number> {
+    return this.pricingRules.numberValue('minimumTextBalance', 100);
+  }
+
+  private async getMinVoiceBalance(): Promise<number> {
+    return this.pricingRules.numberValue('minimumVoiceBalance', 1000);
+  }
 
   async assertCanStartTextChat(balanceAgentTokens: number): Promise<void> {
-    if (this.billingMode !== 'ENFORCE') return;
-    if (balanceAgentTokens < this.minTextBalance) {
-      throw new ForbiddenException('余额不足，请充值后继续文字对话。');
+    const billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
+    if (billingMode !== 'ENFORCE') return;
+
+    const minBalance = await this.getMinTextBalance();
+    if (balanceAgentTokens < minBalance) {
+      throw new ForbiddenException(
+        `余额不足（最低 ${minBalance} Tokens），请充值后继续文字对话。当前余额：${balanceAgentTokens} Tokens`,
+      );
     }
   }
 
   async assertCanStartVoiceChat(balanceAgentTokens: number): Promise<void> {
-    if (this.billingMode !== 'ENFORCE') return;
-    if (balanceAgentTokens < this.minVoiceBalance) {
-      throw new ForbiddenException('余额不足，语音回复暂不可用。');
+    const billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
+    if (billingMode !== 'ENFORCE') return;
+
+    const minBalance = await this.getMinVoiceBalance();
+    if (balanceAgentTokens < minBalance) {
+      throw new ForbiddenException(
+        `余额不足（最低 ${minBalance} Tokens），语音回复暂不可用。当前余额：${balanceAgentTokens} Tokens`,
+      );
     }
   }
 
   canGenerateVoice(balanceAfterTextCharge: number, estimatedTtsAgentTokens: number) {
-    if (this.billingMode !== 'ENFORCE') return true;
+    const billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
+    if (billingMode !== 'ENFORCE') return true;
     return balanceAfterTextCharge >= estimatedTtsAgentTokens;
   }
 }
