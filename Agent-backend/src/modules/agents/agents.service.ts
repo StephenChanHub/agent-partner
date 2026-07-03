@@ -33,7 +33,7 @@ export class AgentsService {
       include: { publishedVersion: true, versions: { orderBy: { updatedAt: 'desc' }, take: 1 } },
       orderBy: { updatedAt: 'desc' },
     });
-    return agents.map((agent: any) => this.toAgentRecord(agent, { preferPublished: true }));
+    return agents.map((agent: any) => this.toAgentRecord(agent));
   }
 
   async listAll(query: any = {}) {
@@ -68,7 +68,7 @@ export class AgentsService {
       include: { publishedVersion: true, versions: { orderBy: { updatedAt: 'desc' }, take: 1 } },
     });
     if (!agent || agent.status !== 'PUBLISHED') throw new NotFoundException('Agent not found');
-    return this.toAgentRecord(agent, { preferPublished: true });
+    return this.toAgentRecord(agent);
   }
 
   async get(id: string) {
@@ -91,7 +91,7 @@ export class AgentsService {
     const exists = await this.prisma.db.agent.findUnique({ where: { slug } });
     if (exists) throw new ConflictException('Agent slug already exists');
     const manifest = this.normalizeManifest({ ...dto, slug });
-    const status = this.normalizeStatus(dto.status, 'PUBLISHED');
+    const status = this.normalizeStatus(dto.status, 'DRAFT');
     const versionStatus = status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
     const manifestHash = this.hashManifest(manifest);
     const saved = await this.prisma.db.$transaction(async (tx: any) => {
@@ -118,7 +118,7 @@ export class AgentsService {
         include: { publishedVersion: true, versions: { orderBy: { updatedAt: 'desc' }, take: 1 } },
       });
     });
-    return this.toAgentRecord(saved, { preferPublished: status === 'PUBLISHED' });
+    return this.toAgentRecord(saved);
   }
 
   async update(id: string, dto: any) {
@@ -138,49 +138,32 @@ export class AgentsService {
     const nextStatus = dto.status ? this.normalizeStatus(dto.status, current.status) : current.status;
     const latestVersion = current.versions?.[0];
     const manifestHash = this.hashManifest(nextManifest);
-    const shouldPublishImmediately = nextStatus === 'PUBLISHED';
-    const nextVersionStatus = shouldPublishImmediately ? 'PUBLISHED' : 'DRAFT';
-    const versionManifestHash = `${manifestHash}-${Date.now().toString(36)}`;
 
     const saved = await this.prisma.db.$transaction(async (tx: any) => {
       await tx.agent.update({ where: { id }, data: { slug: nextSlug, status: nextStatus } });
-      let versionId: string | undefined;
-
       if (latestVersion && latestVersion.status === 'DRAFT') {
-        const updatedVersion = await tx.agentVersion.update({
+        await tx.agentVersion.update({
           where: { id: latestVersion.id },
-          data: {
-            status: nextVersionStatus,
-            manifest: nextManifest,
-            manifestHash: versionManifestHash,
-            changelog: dto.changelog ?? latestVersion.changelog,
-          },
+          data: { manifest: nextManifest, manifestHash, changelog: dto.changelog ?? latestVersion.changelog },
         });
-        versionId = updatedVersion.id;
       } else {
-        const createdVersion = await tx.agentVersion.create({
+        await tx.agentVersion.create({
           data: {
             agentId: id,
             version: this.nextDraftVersion(latestVersion?.version ?? currentRecord.version),
-            status: nextVersionStatus,
+            status: 'DRAFT',
             manifest: nextManifest,
-            manifestHash: versionManifestHash,
+            manifestHash: `${manifestHash}-${Date.now().toString(36)}`,
             changelog: dto.changelog ?? 'Updated from Studio.',
           },
         });
-        versionId = createdVersion.id;
       }
-
-      if (shouldPublishImmediately && versionId) {
-        await tx.agent.update({ where: { id }, data: { status: 'PUBLISHED', publishedVersionId: versionId } });
-      }
-
       return tx.agent.findUnique({
         where: { id },
         include: { publishedVersion: true, versions: { orderBy: { updatedAt: 'desc' }, take: 1 } },
       });
     });
-    return this.toAgentRecord(saved, { preferPublished: shouldPublishImmediately });
+    return this.toAgentRecord(saved);
   }
 
   async publish(id: string) {
@@ -197,7 +180,7 @@ export class AgentsService {
         include: { publishedVersion: true, versions: { orderBy: { updatedAt: 'desc' }, take: 1 } },
       });
     });
-    return this.toAgentRecord(saved, { preferPublished: true });
+    return this.toAgentRecord(saved);
   }
 
   async disable(id: string) {
@@ -208,7 +191,7 @@ export class AgentsService {
       include: { publishedVersion: true, versions: { orderBy: { updatedAt: 'desc' }, take: 1 } },
     }).catch(() => null);
     if (!agent) throw new NotFoundException('Agent not found');
-    return this.toAgentRecord(agent, { preferPublished: true });
+    return this.toAgentRecord(agent);
   }
 
   async delete(id: string) {
@@ -265,9 +248,8 @@ export class AgentsService {
     }).catch(() => null);
   }
 
-  private toAgentRecord(agent: any, options: { preferPublished?: boolean } = {}) {
-    const latestVersion = agent.versions?.[0];
-    const version = options.preferPublished ? (agent.publishedVersion ?? latestVersion) : (latestVersion ?? agent.publishedVersion);
+  private toAgentRecord(agent: any) {
+    const version = agent.publishedVersion ?? agent.versions?.[0];
     const manifest = (version?.manifest ?? this.sampleManifest()) as AgentManifest;
     return {
       id: agent.id,
@@ -367,7 +349,7 @@ export class AgentsService {
     const agent = {
       id: `agent_${Date.now()}`,
       slug,
-      status: this.normalizeStatus(dto.status, 'PUBLISHED'),
+      status: this.normalizeStatus(dto.status, 'DRAFT'),
       version: '0.1.0',
       createdAt: now,
       updatedAt: now,

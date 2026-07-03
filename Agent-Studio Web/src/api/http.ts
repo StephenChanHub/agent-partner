@@ -2,8 +2,8 @@ import axios from 'axios';
 import type { ApiEnvelope, PageResult } from '../types/api';
 import { getAccessToken, useAuthStore } from '../store/auth.store';
 import { API_TIMEOUT_MS, APP_ENV, APP_NAME, makeRequestId } from '../config/runtime';
-import { API_BASE_URL } from './apiBase';
-export { API_BASE_URL } from './apiBase';
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
 
 export const http = axios.create({
   baseURL: API_BASE_URL,

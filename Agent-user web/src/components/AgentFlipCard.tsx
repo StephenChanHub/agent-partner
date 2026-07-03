@@ -159,11 +159,11 @@ export function AgentFlipCard({
   };
 
   const renderMediaDots = () => {
-    if (!mediaItems.length) return null;
+    const count = Math.max(mediaItems.length, 1);
 
     return (
-      <div className="media-count-dots" aria-label="Media preview position">
-        {mediaItems.map((_, dotIndex) => (
+      <div className="media-count-dots" aria-label={mediaItems.length ? 'Media preview position' : 'No media yet'}>
+        {Array.from({ length: count }).map((_, dotIndex) => (
           <button
             key={`${agent.id}_dot_${dotIndex}`}
             className={`media-dot ${dotIndex === currentIndex ? 'media-dot--active' : ''}`}
@@ -271,8 +271,9 @@ export function AgentFlipCard({
                 ))}
               </div>
             ) : (
-              <div className="empty-media-state" aria-label={`${agent.name} has no media yet`}>
-                <strong className="empty-media-agent-name">{agent.name}</strong>
+              <div className="empty-media-state">
+                <div className="upload-plus-button" aria-hidden="true">+</div>
+                <span>media managed by Studio</span>
               </div>
             )}
           </div>

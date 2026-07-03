@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './apiBase';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -10,7 +10,7 @@ type ApiEnvelope<T> = {
 type ApiError = Error & { status?: number; code?: string; details?: Record<string, unknown> };
 
 async function apiRequest<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
