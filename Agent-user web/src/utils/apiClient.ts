@@ -5,8 +5,7 @@ function getApiBase(): string {
 
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    // LAN access (e.g. phone on same network) — route to Mac's port 3000.
-    // Requires UTM port forward: Mac-IP:3000 → VM(192.168.64.2):3000
+    // LAN / server access — keep API on the same VM/server IP, port 3000.
     if (
       hostname &&
       hostname !== 'localhost' &&
@@ -18,7 +17,6 @@ function getApiBase(): string {
     }
   }
 
-  // Local dev on the Mac — talk directly to the UTM VM.
   _apiBase =
     (typeof import.meta !== 'undefined' &&
       (import.meta as any).env?.VITE_API_BASE_URL) ||
@@ -26,24 +24,62 @@ function getApiBase(): string {
   return _apiBase as string;
 }
 
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem('agent-user-web:user-session');
+    if (!raw) return null;
+    const session = JSON.parse(raw) as { accessToken?: string };
+    return session.accessToken || null;
+  } catch {
+    return null;
+  }
+}
+
+async function parseApiResponse<T>(res: Response, path: string): Promise<T> {
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    // ignore non-json responses
+  }
+
+  if (!res.ok) {
+    const message =
+      payload?.message ||
+      payload?.error?.message ||
+      (Array.isArray(payload?.errors) ? payload.errors.join('\n') : '') ||
+      `API ${path} failed: ${res.status}`;
+    throw new Error(message);
+  }
+
+  if (payload?.success === false) {
+    throw new Error(payload?.message || payload?.error?.message || 'API error');
+  }
+
+  return (payload?.success === true ? payload.data : payload) as T;
+}
+
+function buildHeaders(body?: unknown): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const base = getApiBase();
-  const res = await fetch(`${base}${path}`);
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
-  const envelope = await res.json();
-  if (!envelope.success) throw new Error(envelope.message ?? 'API error');
-  return envelope.data as T;
+  const res = await fetch(`${base}${path}`, { headers: buildHeaders() });
+  return parseApiResponse<T>(res, path);
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const base = getApiBase();
   const res = await fetch(`${base}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: buildHeaders(body),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
-  const envelope = await res.json();
-  if (!envelope.success) throw new Error(envelope.message ?? 'API error');
-  return envelope.data as T;
+  return parseApiResponse<T>(res, path);
 }

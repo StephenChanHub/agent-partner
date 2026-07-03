@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { ok, paginated } from '../../common/api-response';
 import { UsageService } from './usage.service';
 import { AdjustBalanceDto } from './dto/adjust-balance.dto';
@@ -8,10 +8,10 @@ export class UsageController {
   constructor(private readonly usageService: UsageService) {}
 
   @Get('me/usage')
-  async getMyUsage() { return ok(await this.usageService.getMyUsage()); }
+  async getMyUsage(@Headers('authorization') authorization?: string) { return ok(await this.usageService.getMyUsage(authorization)); }
 
   @Get('me/usage-records')
-  getMyUsageRecords() { return ok(this.usageService.getMyUsageRecords()); }
+  async getMyUsageRecords(@Headers('authorization') authorization?: string) { return ok(await this.usageService.getMyUsageRecords(authorization)); }
 
   @Get('studio/usage-records')
   getAllUsageRecords(@Query() query: any) {

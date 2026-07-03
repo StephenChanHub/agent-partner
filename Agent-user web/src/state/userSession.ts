@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
+import type { AuthSessionResponse, AuthUser } from '../api/authApi';
 
 export type UserSession = {
   isLoggedIn: boolean;
+  userId?: string;
   nickname: string;
   email: string;
   initials: string;
   tokens: number;
+  usedTokens?: number;
   language: string;
   appearance: 'light' | 'dark' | 'system';
+  accessToken?: string;
+  refreshToken?: string;
+  role?: 'USER' | 'ADMIN';
 };
 
 const STORAGE_KEY = 'agent-user-web:user-session';
@@ -15,26 +21,35 @@ export const USER_SESSION_EVENT = 'agent-user-web:user-session-change';
 
 export const demoUserSession: UserSession = {
   isLoggedIn: true,
+  userId: 'demo',
   nickname: 'Stephen',
   email: 'stephen@did.local',
   initials: 'S',
   tokens: 10000,
+  usedTokens: 0,
   language: 'English',
   appearance: 'system',
+  role: 'USER',
 };
 
 export const guestUserSession: UserSession = {
   isLoggedIn: false,
   nickname: 'Guest',
-  email: 'guest@did.local',
+  email: '',
   initials: 'G',
-  tokens: 10000,
+  tokens: 0,
+  usedTokens: 0,
   language: 'English',
   appearance: 'system',
+  role: 'USER',
 };
 
 function emitUserSessionChange() {
   window.dispatchEvent(new Event(USER_SESSION_EVENT));
+}
+
+function initialsFrom(name: string, email: string) {
+  return (name || email || 'U').trim().charAt(0).toUpperCase();
 }
 
 export function readUserSession(): UserSession {
@@ -50,6 +65,39 @@ export function readUserSession(): UserSession {
 export function saveUserSession(nextSession: UserSession) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession));
   emitUserSessionChange();
+}
+
+export function saveAuthenticatedSession(payload: AuthSessionResponse) {
+  const current = readUserSession();
+  const user = payload.user;
+  saveUserSession({
+    ...current,
+    isLoggedIn: true,
+    userId: user.id,
+    nickname: user.nickname || user.email,
+    email: user.email,
+    initials: user.initials || initialsFrom(user.nickname, user.email),
+    tokens: Number(user.balanceTokens ?? current.tokens ?? 0),
+    usedTokens: Number(user.usedTokens ?? current.usedTokens ?? 0),
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    role: user.role,
+  });
+}
+
+export function updateUserFromApi(user: AuthUser) {
+  const current = readUserSession();
+  saveUserSession({
+    ...current,
+    isLoggedIn: true,
+    userId: user.id,
+    nickname: user.nickname || user.email,
+    email: user.email,
+    initials: user.initials || initialsFrom(user.nickname, user.email),
+    tokens: Number(user.balanceTokens ?? current.tokens ?? 0),
+    usedTokens: Number(user.usedTokens ?? current.usedTokens ?? 0),
+    role: user.role,
+  });
 }
 
 export function loginWithDemoAccount() {

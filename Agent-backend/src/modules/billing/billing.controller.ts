@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { ok, paginated } from '../../common/api-response';
 import { BillingService } from './billing.service';
 import { RechargePackageService } from './recharge-package.service';
@@ -22,19 +22,19 @@ export class BillingController {
   async listPackages() { return ok(await this.packages.listPackages()); }
 
   @Post('recharge-orders')
-  async createOrder(@Body() dto: CreateRechargeOrderDto) { return ok(await this.orders.create(dto)); }
+  async createOrder(@Body() dto: CreateRechargeOrderDto, @Headers('authorization') authorization?: string) { return ok(await this.orders.create(dto, authorization)); }
 
   @Get('recharge-orders')
-  async listOrders(@Query() query: any) { const items = await this.orders.listForCurrentUser(query); return paginated(items, { total: items.length }); }
+  async listOrders(@Query() query: any, @Headers('authorization') authorization?: string) { const items = await this.orders.listForCurrentUser(query, authorization); return paginated(items, { total: items.length }); }
 
   @Get('recharge-orders/:id')
-  async getOrder(@Param('id') id: string) { return ok(await this.orders.getForCurrentUser(id)); }
+  async getOrder(@Param('id') id: string, @Headers('authorization') authorization?: string) { return ok(await this.orders.getForCurrentUser(id, authorization)); }
 
   @Post('recharge-orders/:id/mock-pay')
   async mockPay(@Param('id') id: string) { return ok(await this.orders.mockPay(id)); }
 
   @Get('transactions')
-  async listTransactions(@Query() query: any) { const items = await this.transactions.listForCurrentUser(query); return paginated(items, { total: items.length }); }
+  async listTransactions(@Query() query: any, @Headers('authorization') authorization?: string) { const items = await this.transactions.listForCurrentUser(query, authorization); return paginated(items, { total: items.length }); }
 
   @Post('payment/webhook/wechat')
   wechatWebhook() { return ok({ received: true, provider: 'WECHAT', implemented: false, mode: 'reserved' }); }

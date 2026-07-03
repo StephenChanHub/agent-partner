@@ -3,6 +3,7 @@ import { mockRechargeOrders, mockTokenTransactions, mockUsers } from '../../mock
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { CreateRechargeOrderDto } from './dto/create-recharge-order.dto';
 import { RechargePackageService } from './recharge-package.service';
+import { AuthService } from '../auth/auth.service';
 
 const MANUAL_RECHARGE_EXPIRE_MS = 5 * 60 * 1000;
 const STALE_ORDER_SWEEP_MS = 60 * 1000;
@@ -15,6 +16,7 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly packages: RechargePackageService,
+    private readonly auth: AuthService,
   ) {}
 
   onModuleInit() {
@@ -28,12 +30,12 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
     if (this.staleOrderTimer) clearInterval(this.staleOrderTimer);
   }
 
-  async create(dto: CreateRechargeOrderDto) {
+  async create(dto: CreateRechargeOrderDto, authorization?: string) {
     const pkg = await this.packages.getPackage(dto.packageId);
     const now = new Date();
 
     if (this.prisma.isMockMode) {
-      const user = mockUsers[0];
+      const user = await this.resolveCurrentUser(authorization);
       this.expireMockPendingOrdersForUser(user.id, now);
       const blockingOrder = this.findMockBlockingOrder(user.id, now);
       if (blockingOrder) {
@@ -72,7 +74,7 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
       return order;
     }
 
-    const user = await this.getOrCreateCurrentUser();
+    const user = await this.resolveCurrentUser(authorization);
     await this.expireStalePendingOrdersForUser(user.id, now);
     const blockingOrder = await this.findBlockingOrderForUser(user.id, now);
     if (blockingOrder) {
@@ -109,17 +111,17 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
     return this.serializeOrder(order);
   }
 
-  async listForCurrentUser(_query: any = {}) {
+  async listForCurrentUser(_query: any = {}, authorization?: string) {
     const now = new Date();
     if (this.prisma.isMockMode) {
-      const user = mockUsers[0];
+      const user = await this.resolveCurrentUser(authorization);
       this.expireMockPendingOrdersForUser(user.id, now);
       return mockRechargeOrders
         .filter((order) => order.userId === user.id)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
-    const user = await this.getOrCreateCurrentUser();
+    const user = await this.resolveCurrentUser(authorization);
     await this.expireStalePendingOrdersForUser(user.id, now);
     const items = await (this.prisma.db as any).rechargeOrder.findMany({
       where: { userId: user.id },
@@ -147,10 +149,10 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
     return items.map((item: any) => this.serializeOrder(item));
   }
 
-  async getForCurrentUser(id: string) {
+  async getForCurrentUser(id: string, authorization?: string) {
     const order = await this.get(id);
     if (!this.prisma.isMockMode) {
-      const user = await this.getOrCreateCurrentUser();
+      const user = await this.resolveCurrentUser(authorization);
       if ((order as any).userId !== user.id) throw new NotFoundException('Recharge order not found');
     }
     return order;
@@ -351,6 +353,14 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
         !FINAL_ORDER_STATUSES.has(order.status)
       )
     ));
+  }
+
+  private async resolveCurrentUser(authorization?: string) {
+    const authorized = await this.auth.resolveUserFromAuthorization(authorization);
+    if (authorized) return authorized as any;
+
+    if (this.prisma.isMockMode) return mockUsers[0] as any;
+    return this.getOrCreateCurrentUser();
   }
 
   private async getOrCreateCurrentUser() {

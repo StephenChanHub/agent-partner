@@ -1,18 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { mockTokenTransactions, mockUsers } from '../../mock/mock-data';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class AgentTokenTransactionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auth: AuthService) {}
 
-  async listForCurrentUser(_query: any = {}) {
+  async listForCurrentUser(_query: any = {}, authorization?: string) {
+    const authorized = await this.auth.resolveUserFromAuthorization(authorization);
+
     if (this.prisma.isMockMode) {
-      return mockTokenTransactions.filter((item) => item.userId === mockUsers[0].id);
+      const user = (authorized as any) ?? mockUsers[0];
+      return mockTokenTransactions.filter((item) => item.userId === user.id);
     }
 
     const demo = mockUsers[0];
-    const user = await (this.prisma.db as any).user.findFirst({
+    const user = authorized ?? await (this.prisma.db as any).user.findFirst({
       where: { OR: [{ id: demo.id }, { email: demo.email }] },
     });
     if (!user) return [];

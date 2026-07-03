@@ -11,9 +11,10 @@ import { AdminTokenAdjustmentService } from './admin-token-adjustment.service';
 import { RechargeOrderRepository } from './repositories/recharge-order.repository';
 import { AgentTokenTransactionRepository } from './repositories/agent-token-transaction.repository';
 import { PrismaModule } from '../../infrastructure/database/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [BillingController, StudioBillingController],
   providers: [
     BillingService,

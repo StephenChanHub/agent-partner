@@ -7,9 +7,10 @@ import { UsageRepository } from './repositories/usage.repository';
 import { PricingService } from './pricing.service';
 import { BillingModule } from '../billing/billing.module';
 import { PrismaModule } from '../../infrastructure/database/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [BillingModule, PrismaModule],
+  imports: [BillingModule, PrismaModule, AuthModule],
   controllers: [UsageController],
   providers: [UsageService, UsageMeterService, BillingGuardService, UsageRepository, PricingService],
   exports: [UsageService, UsageMeterService, BillingGuardService, PricingService],

@@ -1,4 +1,10 @@
+import { IsEmail, IsIn, IsOptional } from 'class-validator';
+
 export class SendEmailCodeDto {
+  @IsEmail()
   email!: string;
-  purpose!: 'REGISTER';
+
+  @IsOptional()
+  @IsIn(['REGISTER'])
+  purpose?: 'REGISTER';
 }

@@ -3,16 +3,19 @@ import { mockRechargePackages, mockUsageRecords, mockUsers } from '../../mock/mo
 import { AdjustBalanceDto } from './dto/adjust-balance.dto';
 import { PricingService } from './pricing.service';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class UsageService {
   constructor(
     private readonly pricingService: PricingService,
     private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
   ) {}
 
-  async getMyUsage() {
-    const demo = mockUsers[0];
+  async getMyUsage(authorization?: string) {
+    const authorized = await this.auth.resolveUserFromAuthorization(authorization);
+    const demo = (authorized as any) ?? mockUsers[0];
     const pricing = await this.pricingService.getPricing();
 
     if (this.prisma.isMockMode) {
@@ -47,7 +50,11 @@ export class UsageService {
 
   getRechargePackages() { return { packages: mockRechargePackages }; }
 
-  getMyUsageRecords() { return { items: mockUsageRecords.filter((record) => record.userId === mockUsers[0].id), page: 1, pageSize: 20, total: 1 }; }
+  async getMyUsageRecords(authorization?: string) {
+    const authorized = await this.auth.resolveUserFromAuthorization(authorization);
+    const user = (authorized as any) ?? mockUsers[0];
+    return { items: mockUsageRecords.filter((record) => record.userId === user.id), page: 1, pageSize: 20, total: 1 };
+  }
 
   getAllUsageRecords(query: any = {}) {
     const userId = query.userId;

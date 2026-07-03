@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post } from '@nestjs/common';
 import { ok } from '../../common/api-response';
 import { AuthService } from './auth.service';
 import { SendEmailCodeDto } from './dto/send-email-code.dto';
@@ -14,6 +14,12 @@ export class AuthController {
     return ok(await this.service.sendEmailCode(dto));
   }
 
+  // Compatibility alias for the imported project.
+  @Post('send-code')
+  async sendCode(@Body() dto: SendEmailCodeDto) {
+    return ok(await this.service.sendEmailCode({ ...dto, purpose: 'REGISTER' }));
+  }
+
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return ok(await this.service.register(dto));
@@ -25,8 +31,8 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh() {
-    return ok(await this.service.refresh());
+  async refresh(@Headers('authorization') authorization?: string) {
+    return ok(await this.service.refresh(authorization));
   }
 
   @Post('logout')
