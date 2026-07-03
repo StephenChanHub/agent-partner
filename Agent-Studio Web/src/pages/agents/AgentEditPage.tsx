@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { studioApi } from '../../api/studio';
-import { API_BASE_URL } from '../../api/http';
+import { resolveApiAssetUrl } from '../../api/apiBase';
 import { AvatarInitial } from '../../components/AvatarInitial';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusTag } from '../../components/StatusTag';
@@ -17,9 +17,7 @@ type GalleryVideo = { url: string; posterUrl?: string; title?: string; sortOrder
 const emptyAgentPrompt = '你是一个 Jarvis Agent。请保持专业、简洁、可靠，先给结论，再给步骤。';
 
 function resolveMediaUrl(url?: string) {
-  if (!url) return undefined;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+  return resolveApiAssetUrl(url);
 }
 
 function isPublishedVoice(voice: VoiceProfile) {

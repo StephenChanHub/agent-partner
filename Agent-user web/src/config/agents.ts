@@ -1,6 +1,5 @@
 import { apiGet } from '../utils/apiClient';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
+import { resolveApiAssetUrl } from '../utils/apiBase';
 
 export type HomeAgentMedia = {
   id: string;
@@ -36,11 +35,6 @@ type AgentRecord = {
   };
 };
 
-function resolveMediaUrl(url?: string) {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-  return `${API_BASE}${url.startsWith('/') ? url : `/${url}`}`;
-}
 
 export const fallbackHomeAgents: HomeAgent[] = [
   {
@@ -67,7 +61,7 @@ export function mapAgentRecord(record: AgentRecord): HomeAgent {
     .map((item, index) => ({
       id: `${record.id}_image_${index}`,
       type: 'image' as const,
-      url: resolveMediaUrl(item.url),
+      url: resolveApiAssetUrl(item.url),
       name: item.alt || `${identity.name || record.slug} image ${index + 1}`,
     }));
   const videos = (social.galleryVideos ?? [])
@@ -76,8 +70,8 @@ export function mapAgentRecord(record: AgentRecord): HomeAgent {
     .map((item, index) => ({
       id: `${record.id}_video_${index}`,
       type: 'video' as const,
-      url: resolveMediaUrl(item.url),
-      posterUrl: resolveMediaUrl(item.posterUrl),
+      url: resolveApiAssetUrl(item.url),
+      posterUrl: resolveApiAssetUrl(item.posterUrl),
       name: item.title || `${identity.name || record.slug} video ${index + 1}`,
     }));
 
@@ -86,16 +80,17 @@ export function mapAgentRecord(record: AgentRecord): HomeAgent {
     slug: record.slug,
     name: identity.name || record.slug,
     description: identity.description || 'Agent profile.',
-    avatarUrl: resolveMediaUrl(identity.avatarUrl),
+    avatarUrl: resolveApiAssetUrl(identity.avatarUrl),
     voiceProfileId: record.manifest?.voice?.profileId,
     voiceDisplayName: record.manifest?.voice?.displayName,
-    voicePreviewAudioUrl: resolveMediaUrl(record.manifest?.voice?.previewAudioUrl),
+    voicePreviewAudioUrl: resolveApiAssetUrl(record.manifest?.voice?.previewAudioUrl),
     mediaItems: [...images, ...videos],
   };
 }
 
 export async function fetchHomeAgents(): Promise<HomeAgent[]> {
-  const records = await apiGet<AgentRecord[]>('/agents');
-  const mapped = (records ?? []).map(mapAgentRecord).filter((agent) => agent.name);
+  const response = await apiGet<AgentRecord[] | { items?: AgentRecord[] }>('/agents');
+  const records = Array.isArray(response) ? response : response?.items ?? [];
+  const mapped = records.map(mapAgentRecord).filter((agent) => agent.name);
   return mapped.length ? mapped : fallbackHomeAgents;
 }
