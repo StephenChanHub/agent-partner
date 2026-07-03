@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { InitialAvatar } from '../components/InitialAvatar';
-import { updateUserSession, useUserSession } from '../state/userSession';
+import { isUserLoggedIn, requestUserAuth, updateUserSession, useUserSession } from '../state/userSession';
 import { walletApi } from '../api/walletApi';
 import type { ApiBillingPricing, ApiRechargeOrder, ApiRechargePackage, ApiTokenTransaction } from '../api/walletApi';
 import './WalletPage.css';
@@ -169,9 +169,17 @@ export function WalletPage() {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [notice, setNotice] = useState<{ type: 'info' | 'error' | 'success'; text: string } | null>(null);
 
-  const pendingOrder = orders.find((order) => order.status === 'PENDING');
+  const isLoggedIn = isUserLoggedIn(session);
+  const pendingOrder = isLoggedIn ? orders.find((order) => order.status === 'PENDING') : undefined;
 
   const refreshWalletData = useCallback(async () => {
+    if (!isLoggedIn) {
+      setOrders([]);
+      setTransactions([]);
+      setBalance(0);
+      return;
+    }
+
     const [apiOrders, apiTransactions, usage] = await Promise.all([
       walletApi.listRechargeOrders(),
       walletApi.listTokenTransactions(),
@@ -182,7 +190,7 @@ export function WalletPage() {
     setTransactions(mapApiTransactions(apiTransactions.items));
     setBalance(nextBalance);
     updateUserSession({ tokens: nextBalance });
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (payModalPackage) {
@@ -198,23 +206,16 @@ export function WalletPage() {
     Promise.all([
       walletApi.getPackages(),
       walletApi.getPricing(),
-      walletApi.listRechargeOrders(),
-      walletApi.listTokenTransactions(),
-      walletApi.getBalance(),
-    ]).then(([apiPackages, apiPricing, apiOrders, apiTransactions, usage]) => {
+    ]).then(([apiPackages, apiPricing]) => {
       if (cancelled) return;
       const mapped = mapApiPackages(apiPackages);
       setPackages(mapped);
       setPricing(apiPricing);
-      setOrders(mapApiOrders(apiOrders.items));
-      setTransactions(mapApiTransactions(apiTransactions.items));
-      setBalance(usage.balanceAgentTokens);
-      updateUserSession({ tokens: usage.balanceAgentTokens });
       if (mapped.length > 0 && !activePackageId) {
         setActivePackageId(mapped[0].id);
       }
     }).catch(() => {
-      if (!cancelled) setNotice({ type: 'error', text: '钱包数据加载失败，请确认后端服务已启动。' });
+      if (!cancelled) setNotice({ type: 'error', text: '钱包套餐数据加载失败，请确认后端服务已启动。' });
     }).finally(() => {
       if (!cancelled) setPackagesLoading(false);
     });
@@ -224,11 +225,18 @@ export function WalletPage() {
   }, []);
 
   useEffect(() => {
+    refreshWalletData().catch(() => {
+      if (isLoggedIn) setNotice({ type: 'error', text: '钱包数据加载失败，请确认后端服务已启动。' });
+    });
+  }, [isLoggedIn, refreshWalletData]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
     const timer = window.setInterval(() => {
       refreshWalletData().catch(() => undefined);
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [refreshWalletData]);
+  }, [isLoggedIn, refreshWalletData]);
 
   const handlePackageClick = (item: RechargePackage) => {
     setActivePackageId(item.id);
@@ -240,6 +248,13 @@ export function WalletPage() {
 
   const handlePayConfirmed = async () => {
     if (!payModalPackage || submittingOrder) return;
+    if (!isLoggedIn) {
+      setPayModalPackage(null);
+      setSelectedPaymentId(null);
+      setCopied(false);
+      requestUserAuth();
+      return;
+    }
     if (pendingOrder) {
       setNotice({ type: 'error', text: `你有未处理完成的充值订单 ${pendingOrder.orderNo}，请等待管理员确认或 5 分钟自动取消后再下单。` });
       setActiveTab('orders');
@@ -283,7 +298,9 @@ export function WalletPage() {
 
       <section className="wallet-balance-card" aria-label="Current token balance">
         <span className="wallet-eyebrow">Current balance</span>
-        <h1><span className="wallet-token-word">Tokens</span><span className="wallet-token-colon">：</span><RollingTokens value={balance} /></h1>
+        <h1><img className="wallet-token-logo" src="/Tokens.png" alt="" aria-hidden="true" />
+        <span className="wallet-token-word">Tokens</span>
+        <span className="wallet-token-colon">ㅤx</span><RollingTokens value={balance} /></h1>
       </section>
 
       {notice ? (
@@ -295,7 +312,7 @@ export function WalletPage() {
       <section className="wallet-section" aria-labelledby="recharge-title">
         <div className="wallet-section-heading">
           <h2 id="recharge-title">Recharge</h2>
-          <span>{pricing ? `Live pricing · ¥1 = ${formatTokens(pricing.agentTokensPerRmb)} Tokens · text min ${formatTokens(pricing.minimumTextBalance)}` : 'Loading live pricing...'}</span>
+          {/* <span>{pricing ? `Live pricing · ¥1 = ${formatTokens(pricing.agentTokensPerRmb)} Tokens · text min ${formatTokens(pricing.minimumTextBalance)}` : 'Loading live pricing...'}</span> */}
         </div>
 
         {pendingOrder ? (
@@ -373,9 +390,13 @@ export function WalletPage() {
       {payModalPackage ? (() => {
         const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentId) ?? null;
         const isExpanded = selectedPaymentId !== null;
-        const userEmail = session.email;
+        const userEmail = isLoggedIn ? session.email : 'Please log in first.';
 
         const handleCopyEmail = async () => {
+          if (!isLoggedIn) {
+            requestUserAuth();
+            return;
+          }
           try {
             await navigator.clipboard.writeText(userEmail);
             setCopied(true);
@@ -461,7 +482,7 @@ export function WalletPage() {
                   <div className="pay-email-input-wrap">
                     <input
                       className="pay-email-input" aria-label="Your email address for payment verification"
-                      type="email"
+                      type={isLoggedIn ? "email" : "text"}
                       value={userEmail}
                       readOnly
                     />

@@ -18,6 +18,7 @@ export type UserSession = {
 
 const STORAGE_KEY = 'agent-user-web:user-session';
 export const USER_SESSION_EVENT = 'agent-user-web:user-session-change';
+export const USER_AUTH_REQUIRED_EVENT = 'agent-user-web:auth-required';
 
 export const demoUserSession: UserSession = {
   isLoggedIn: true,
@@ -46,6 +47,14 @@ export const guestUserSession: UserSession = {
 
 function emitUserSessionChange() {
   window.dispatchEvent(new Event(USER_SESSION_EVENT));
+}
+
+export function requestUserAuth() {
+  window.dispatchEvent(new Event(USER_AUTH_REQUIRED_EVENT));
+}
+
+export function isUserLoggedIn(session: Pick<UserSession, 'isLoggedIn' | 'accessToken'>) {
+  return Boolean(session.isLoggedIn && session.accessToken);
 }
 
 function initialsFrom(name: string, email: string) {

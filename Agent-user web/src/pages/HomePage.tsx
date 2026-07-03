@@ -594,8 +594,8 @@ export function HomePage({ agents, loadingAgents, agentsError }: { agents: HomeA
             aria-label="Open token wallet"
             onClick={navigateToWallet}
           >
-            <span className="token-word">Tokens</span>：
-            {formatTokens(session.tokens)}
+            <img className="home-token-logo" src="/Tokens.png" alt="" aria-hidden="true" />
+            <span className="token-word">Tokens</span> x {formatTokens(session.tokens)}
           </button>
         </div>
       </header>

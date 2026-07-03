@@ -21,9 +21,12 @@ import { TEMP_AUDIO_STORAGE } from './audio/temp-audio-storage.port';
 import { UsageModule } from '../usage/usage.module';
 import { LLMModule } from '../../infrastructure/llm/llm.module';
 import { TTSModule } from '../../infrastructure/tts/tts.module';
+import { ModelProfilesModule } from '../model-profiles/model-profiles.module';
+import { AuthModule } from '../auth/auth.module';
+import { PrismaModule } from '../../infrastructure/database/prisma.module';
 
 @Module({
-  imports: [UsageModule, LLMModule, TTSModule],
+  imports: [UsageModule, LLMModule, TTSModule, ModelProfilesModule, AuthModule, PrismaModule],
   controllers: [RuntimeController, RuntimeChatController, TempAudioController],
   providers: [
     RuntimeService,

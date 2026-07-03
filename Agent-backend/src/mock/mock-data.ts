@@ -136,6 +136,14 @@ export const mockSession = {
   updatedAt: new Date().toISOString(),
 };
 
+// In-memory session store for mock mode — keyed by `${userId}::${agentSlug}`
+export const mockAgentSessions: any[] = [
+  { ...mockSession },
+];
+
+// In-memory message store for mock mode
+export const mockMessages: any[] = [];
+
 
 export const mockPricingRules = [
   {

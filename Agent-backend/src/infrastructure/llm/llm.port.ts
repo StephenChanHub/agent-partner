@@ -5,6 +5,10 @@ export interface LLMGenerateInput {
   temperature?: number;
   maxOutputTokens?: number;
   traceId?: string;
+  /** Admin-configured model profile overrides (from DB or mock). */
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }
 
 export interface LLMGenerateResult {

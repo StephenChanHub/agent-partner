@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AgentFlipCard } from '../components/AgentFlipCard';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { type HomeAgent } from '../config/agents';
-import { useUserSession } from '../state/userSession';
+import { isUserLoggedIn, requestUserAuth, updateUserSession, useUserSession } from '../state/userSession';
+import { apiPost } from '../utils/apiClient';
 import './ChatPage.css';
 
 type ChatPageProps = {
@@ -15,6 +16,23 @@ type ChatMessage = {
   text: string;
   status?: 'thinking' | 'ready';
   audioUrl?: string;
+};
+
+type ChatApiResponse = {
+  sessionId: string;
+  userMessage: { id: string; role: string; content: string };
+  assistantMessage: { id: string; role: string; content: string };
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    costAgentTokens: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    provider: string;
+    model: string;
+  };
+  mode: string;
 };
 
 function goBackHome() {
@@ -117,10 +135,13 @@ export function ChatPage({ agent }: ChatPageProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const copyTimerRef = useRef<number | null>(null);
 
+  const [insufficientBalance, setInsufficientBalance] = useState(false);
+
   useEffect(() => {
     audioRef.current?.pause();
     setPlayingMessageId(null);
     setMessages([introMessage]);
+    setInsufficientBalance(false);
   }, [introMessage]);
 
   useEffect(() => {
@@ -179,9 +200,16 @@ export function ChatPage({ agent }: ChatPageProps) {
     });
   };
 
-  const sendMessage = () => {
+  const requireLogin = () => {
+    if (isUserLoggedIn(session)) return false;
+    requestUserAuth();
+    return true;
+  };
+
+  const sendMessage = async () => {
     const text = draft.trim();
     if (!text) return;
+    if (requireLogin()) return;
 
     const now = Date.now();
     const userMessage: ChatMessage = {
@@ -198,6 +226,59 @@ export function ChatPage({ agent }: ChatPageProps) {
 
     setMessages((current) => [...current, userMessage, thinkingMessage]);
     setDraft('');
+    setInsufficientBalance(false);
+
+    try {
+      const result = await apiPost<ChatApiResponse>('/chat', {
+        agentSlug: agent.slug,
+        message: text,
+        sessionId: undefined,
+        client: 'web',
+      });
+
+      // Replace the thinking message with the real response
+      const assistantMessage: ChatMessage = {
+        id: result.assistantMessage.id,
+        role: 'agent',
+        text: result.assistantMessage.content,
+        status: 'ready',
+      };
+
+      setMessages((current) =>
+        current.map((msg) =>
+          msg.id === thinkingMessage.id ? assistantMessage : msg,
+        ),
+      );
+
+      // Update session token balance
+      updateUserSession({ tokens: result.usage.balanceAfter });
+    } catch (error: any) {
+      const message = error?.message ?? String(error);
+
+      if (message.includes('余额不足') || message.includes('insufficient') || message.includes('充值')) {
+        setInsufficientBalance(true);
+        setMessages((current) =>
+          current.map((msg) =>
+            msg.id === thinkingMessage.id
+              ? { ...msg, text: '余额不足，请先充值后再继续对话。', status: 'ready' }
+              : msg,
+          ),
+        );
+      } else if (message.includes('登录') || message.includes('login') || message.includes('unauthorized') || message.includes('未授权')) {
+        // Auth required — remove thinking message and trigger login
+        setMessages((current) => current.filter((msg) => msg.id !== thinkingMessage.id));
+        requestUserAuth();
+      } else {
+        // Generic error — show error in thinking message
+        setMessages((current) =>
+          current.map((msg) =>
+            msg.id === thinkingMessage.id
+              ? { ...msg, text: `发送失败：${message}`, status: 'ready' }
+              : msg,
+          ),
+        );
+      }
+    }
   };
 
   return (
@@ -218,7 +299,8 @@ export function ChatPage({ agent }: ChatPageProps) {
         </button>
 
         <button className="chat-token-badge" type="button" aria-label="Open token wallet" onClick={goToWallet}>
-          <span className="chat-token-word">Tokens</span>：{session.tokens.toLocaleString('en-US')}
+          <img className="chat-token-logo" src="/Tokens.png" alt="" aria-hidden="true" />
+          <span className="chat-token-word">Tokens</span>{" x "}{session.tokens.toLocaleString('en-US')}
         </button>
       </header>
 
@@ -271,6 +353,13 @@ export function ChatPage({ agent }: ChatPageProps) {
         })}
       </section>
 
+      {insufficientBalance ? (
+        <div className="chat-balance-warning" role="alert">
+          <span>⚠️ 余额不足，请先充值后再继续对话。</span>
+          <button type="button" onClick={goToWallet}>去充值</button>
+        </div>
+      ) : null}
+
       <footer className="chat-composer">
         <div className="chat-composer-inner">
           <div className="chat-input-shell">
@@ -291,11 +380,17 @@ export function ChatPage({ agent }: ChatPageProps) {
               <ArrowUpIcon />
             </button>
           </div>
-          <button className="voice-input-button" type="button" aria-label="Voice input">
+          <button className="voice-input-button" type="button" aria-label="Voice input" onClick={requireLogin}>
             <MicIcon />
           </button>
         </div>
       </footer>
+
+      {copiedMessageId ? (
+        <output className="copy-toast" role="status" aria-live="polite">
+          Copied!
+        </output>
+      ) : null}
 
       {isProfileOpen ? (
         <div className="agent-profile-overlay" role="presentation" onClick={() => setIsProfileOpen(false)}>
