@@ -271,9 +271,8 @@ export function AgentFlipCard({
                 ))}
               </div>
             ) : (
-              <div className="empty-media-state">
-                <div className="upload-plus-button" aria-hidden="true">+</div>
-                <span>media managed by Studio</span>
+              <div className="empty-media-state" aria-label={`${agent.name} has no media yet`}>
+                <span className="empty-media-agent-name">{agent.name}</span>
               </div>
             )}
           </div>

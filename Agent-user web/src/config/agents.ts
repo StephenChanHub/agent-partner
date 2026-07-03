@@ -1,6 +1,4 @@
-import { apiGet } from '../utils/apiClient';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.64.2:3000/api';
+import { API_BASE, apiGet } from '../utils/apiClient';
 
 export type HomeAgentMedia = {
   id: string;

@@ -16,10 +16,21 @@ async function bootstrap() {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+  const allowPrivateNetworkOrigins = process.env.CORS_ALLOW_PRIVATE_NETWORKS !== 'false';
+  const privateNetworkOriginPatterns = [
+    /^https?:\/\/localhost(?::\d+)?$/,
+    /^https?:\/\/127\.0\.0\.1(?::\d+)?$/,
+    /^https?:\/\/10(?:\.\d{1,3}){3}(?::\d+)?$/,
+    /^https?:\/\/192\.168(?:\.\d{1,3}){2}(?::\d+)?$/,
+    /^https?:\/\/172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}(?::\d+)?$/,
+  ];
 
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      if (allowPrivateNetworkOrigins && privateNetworkOriginPatterns.some((pattern) => pattern.test(origin))) {
         return callback(null, true);
       }
       return callback(null, false);

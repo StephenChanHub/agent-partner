@@ -270,15 +270,22 @@
   width: 100%;
   height: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  color: rgba(13, 33, 165, 0.58);
-  font-size: 12px;
-  font-weight: 760;
-  letter-spacing: 0.02em;
-  text-transform: lowercase;
+  text-align: center;
+  color: var(--agent-blue);
+  padding: 28px;
+}
+
+.empty-media-agent-name {
+  display: block;
+  max-width: 100%;
+  color: var(--agent-blue);
+  font-size: clamp(30px, 7vw, 58px);
+  line-height: 1.04;
+  font-weight: 860;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
 }
 
 .upload-plus-button {
