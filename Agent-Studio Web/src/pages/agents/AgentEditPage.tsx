@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, AudioOutlined, PictureOutlined, PlayCircleOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, AudioOutlined, DeleteOutlined, PictureOutlined, PlayCircleOutlined, PlusOutlined, SaveOutlined, UploadOutlined } from '@ant-design/icons';
 import { App, Button, Card, Col, Form, Input, Row, Select, Space, Tabs, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -10,20 +10,13 @@ import { PageHeader } from '../../components/PageHeader';
 import { StatusTag } from '../../components/StatusTag';
 import type { AgentRecord, VoiceProfile } from '../../types/api';
 
-type LocalMedia = {
-  id: string;
-  type: 'image' | 'video';
-  url: string;
-  name: string;
-};
-
-type Props = {
-  mode: 'create' | 'edit';
-};
+type Props = { mode: 'create' | 'edit' };
+type GalleryImage = { url: string; alt?: string; sortOrder?: number };
+type GalleryVideo = { url: string; posterUrl?: string; title?: string; sortOrder?: number };
 
 const emptyAgentPrompt = '你是一个 Jarvis Agent。请保持专业、简洁、可靠，先给结论，再给步骤。';
 
-function resolveAudioUrl(url?: string) {
+function resolveMediaUrl(url?: string) {
   if (!url) return undefined;
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
   return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
@@ -42,7 +35,8 @@ export function AgentEditPage({ mode }: Props) {
   const [form] = Form.useForm();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
-  const [localMedia, setLocalMedia] = useState<LocalMedia[]>([]);
+  const [draftImages, setDraftImages] = useState<GalleryImage[]>([]);
+  const [draftVideos, setDraftVideos] = useState<GalleryVideo[]>([]);
 
   const agent = useQuery({
     queryKey: ['agent', id],
@@ -61,9 +55,11 @@ export function AgentEditPage({ mode }: Props) {
           slug: '',
           description: '',
           modelProfileId: 'model_profile_mock_default',
-          voiceProfileId: 'voice_profile_mock_default',
+          voiceProfileId: '00000000-0000-4000-8000-000000000101',
           configPrompt: emptyAgentPrompt,
         });
+        setDraftImages([]);
+        setDraftVideos([]);
       }
       return;
     }
@@ -75,13 +71,38 @@ export function AgentEditPage({ mode }: Props) {
       voiceProfileId: record.manifest.voice?.profileId,
       configPrompt: record.manifest.config?.prompt,
     });
+    setDraftImages(record.manifest.social?.galleryImages ?? []);
+    setDraftVideos(record.manifest.social?.galleryVideos ?? []);
   }, [agent.data, form, isEdit]);
 
-  useEffect(() => {
-    return () => {
-      localMedia.forEach((item) => URL.revokeObjectURL(item.url));
-    };
-  }, [localMedia]);
+  const uploadMediaMutation = useMutation({
+    mutationFn: async ({ file, kind }: { file: File; kind: 'agent-image' | 'agent-video' }) => studioApi.uploadMedia(file, kind),
+    onError: (error) => message.error(error instanceof Error ? error.message : '媒体上传失败'),
+  });
+
+  const uploadFiles = async (files: FileList | null, type: 'image' | 'video') => {
+    const selected = Array.from(files ?? []);
+    if (!selected.length) return;
+    const kind = type === 'image' ? 'agent-image' : 'agent-video';
+    try {
+      const uploaded = await Promise.all(selected.map((file) => uploadMediaMutation.mutateAsync({ file, kind })));
+      if (type === 'image') {
+        setDraftImages((items) => [
+          ...items,
+          ...uploaded.map((file, index) => ({ url: file.url, alt: file.originalName, sortOrder: items.length + index + 1 })),
+        ]);
+      } else {
+        setDraftVideos((items) => [
+          ...items,
+          ...uploaded.map((file, index) => ({ url: file.url, title: file.originalName, sortOrder: items.length + index + 1 })),
+        ]);
+      }
+      message.success(`已上传 ${uploaded.length} 个媒体文件，并写入待保存的 Agent 媒体列表`);
+    } finally {
+      if (type === 'image' && imageInputRef.current) imageInputRef.current.value = '';
+      if (type === 'video' && videoInputRef.current) videoInputRef.current.value = '';
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (values: any) => {
@@ -96,7 +117,7 @@ export function AgentEditPage({ mode }: Props) {
             description: values.description ?? '',
             avatarUrl: current?.manifest.identity.avatarUrl ?? '',
           },
-          social: current?.manifest.social ?? { galleryImages: [], galleryVideos: [] },
+          social: { galleryImages: draftImages, galleryVideos: draftVideos },
           model: { profileId: values.modelProfileId },
           voice: {
             profileId: values.voiceProfileId,
@@ -109,7 +130,7 @@ export function AgentEditPage({ mode }: Props) {
       return isEdit && id ? studioApi.updateAgent(id, payload) : studioApi.createAgent(payload);
     },
     onSuccess: async (saved) => {
-      message.success('Agent 已保存');
+      message.success('Agent 已保存，客户端 Agent 卡片会读取最新发布数据');
       await queryClient.invalidateQueries({ queryKey: ['agents'] });
       await queryClient.invalidateQueries({ queryKey: ['agent', saved.id] });
       if (!isEdit) navigate(`/agents/${saved.id}/edit`, { replace: true });
@@ -119,45 +140,26 @@ export function AgentEditPage({ mode }: Props) {
 
   const values = Form.useWatch([], form) ?? {};
   const record = agent.data;
-  const existingImages = record?.manifest.social?.galleryImages ?? [];
-  const existingVideos = record?.manifest.social?.galleryVideos ?? [];
   const previewName = values.name || record?.manifest.identity.name || 'New Agent';
   const previewDescription = values.description || record?.manifest.identity.description || 'Agent profile preview';
   const voiceItems = (voices.data?.items ?? []).filter(isPublishedVoice);
   const selectedVoice = voiceItems.find((voice) => voice.id === values.voiceProfileId) ?? voiceItems.find((voice) => voice.id === record?.manifest.voice?.profileId);
-  const selectedVoiceAudioUrl = resolveAudioUrl(selectedVoice?.previewAudioUrl ?? selectedVoice?.previewUrl ?? record?.manifest.voice?.previewAudioUrl);
+  const selectedVoiceAudioUrl = resolveMediaUrl(selectedVoice?.previewAudioUrl ?? selectedVoice?.previewUrl ?? record?.manifest.voice?.previewAudioUrl);
 
   const stats = useMemo(() => ({
-    photos: existingImages.length + localMedia.filter((item) => item.type === 'image').length,
-    videos: existingVideos.length + localMedia.filter((item) => item.type === 'video').length,
+    photos: draftImages.length,
+    videos: draftVideos.length,
     status: record?.status ?? 'DRAFT',
-  }), [existingImages.length, existingVideos.length, localMedia, record?.status]);
+  }), [draftImages.length, draftVideos.length, record?.status]);
 
-  const addLocalFiles = (files: FileList | null, type: 'image' | 'video') => {
-    if (!files?.length) return;
-    const next = Array.from(files).map((file) => ({
-      id: `${type}_${Date.now()}_${file.name}`,
-      type,
-      url: URL.createObjectURL(file),
-      name: file.name,
-    }));
-    setLocalMedia((items) => [...next, ...items]);
-    message.info('已添加本地预览。沙盒阶段不会上传到 Ubuntu Core，也不会写入服务器。');
-  };
-
-  const removeLocalMedia = (id: string) => {
-    setLocalMedia((items) => {
-      const target = items.find((item) => item.id === id);
-      if (target) URL.revokeObjectURL(target.url);
-      return items.filter((item) => item.id !== id);
-    });
-  };
+  const removeImage = (index: number) => setDraftImages((items) => items.filter((_, itemIndex) => itemIndex !== index));
+  const removeVideo = (index: number) => setDraftVideos((items) => items.filter((_, itemIndex) => itemIndex !== index));
 
   return (
     <div>
       <PageHeader
         title={isEdit ? 'Agent Profile 编辑' : '新建 Agent Profile'}
-        description="Instagram 风格 Agent 主页编辑器：上方基本资料和已发布 Voice 选择，下方媒体展示；本地媒体只做浏览器预览。"
+        description="管理员创建和维护 Agent；媒体文件会上传到后端 media-storage，保存并发布后客户端卡片同步展示。"
         actions={
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/agents')}>返回列表</Button>
@@ -195,20 +197,14 @@ export function AgentEditPage({ mode }: Props) {
               <Form.Item name="description" label="个人简介 / 描述"><Input.TextArea rows={3} placeholder="展示在 Agent 主页上的简介" /></Form.Item>
             </Col>
             <Col xs={24}>
-              <div className="reserved-field-note">
-                头像图片字段与接口已预留，但 V1.7.3 管理端不开放头像 URL / 上传入口；头像统一使用蓝底白色首字符。
-              </div>
+              <div className="reserved-field-note">头像字段保留在 manifest.identity.avatarUrl；当前页面优先使用统一首字母头像，媒体展示由下方图片/视频管理。</div>
             </Col>
             <Col xs={24} md={12}>
               <Form.Item name="modelProfileId" label="Model Profile" rules={[{ required: true }]}><Select options={(models.data?.items ?? []).map((m) => ({ label: m.displayName, value: m.id }))} /></Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="voiceProfileId" label="Voice Profile（仅已发布）" rules={[{ required: true }]}>
-                <Select
-                  loading={voices.isLoading}
-                  options={voiceItems.map((v) => ({ label: `${v.displayName} · ${v.provider}`, value: v.id }))}
-                  placeholder="选择已发布 Voice Profile"
-                />
+              <Form.Item name="voiceProfileId" label="Voice Profile（仅已发布）" rules={[{ required: true }]}> 
+                <Select loading={voices.isLoading} options={voiceItems.map((v) => ({ label: `${v.displayName} · ${v.provider}`, value: v.id }))} placeholder="选择已发布 Voice Profile" />
               </Form.Item>
             </Col>
             <Col xs={24}>
@@ -220,9 +216,7 @@ export function AgentEditPage({ mode }: Props) {
                     {selectedVoice ? <StatusTag value={selectedVoice.provider} /> : null}
                     {selectedVoice ? <StatusTag value={selectedVoice.status} /> : null}
                   </Space>
-                  <Typography.Text type="secondary">
-                    Agent 只保存 voice.profileId；试听音频来自 VoiceProfile.previewAudioUrl。
-                  </Typography.Text>
+                  <Typography.Text type="secondary">Agent 保存 voice.profileId；试听音频来自 Voice Profile 的 previewAudioUrl。</Typography.Text>
                   {selectedVoiceAudioUrl ? <audio controls src={selectedVoiceAudioUrl} /> : <Typography.Text type="secondary">暂无试听音频</Typography.Text>}
                 </div>
               </div>
@@ -238,34 +232,22 @@ export function AgentEditPage({ mode }: Props) {
         <div className="media-toolbar">
           <div>
             <Typography.Title level={4}>媒体展示</Typography.Title>
-            <Typography.Text type="secondary">照片 / 视频只做页面展示预览；本地选择文件不会上传到 UTM Ubuntu。</Typography.Text>
+            <Typography.Text type="secondary">上传后文件存储在后端 media-storage；点击保存 Agent 后写入 manifest.social，发布后用户端卡片同步展示。</Typography.Text>
           </div>
           <Space wrap>
-            <Button icon={<PictureOutlined />} onClick={() => imageInputRef.current?.click()}>添加照片预览</Button>
-            <Button icon={<PlayCircleOutlined />} onClick={() => videoInputRef.current?.click()}>添加视频预览</Button>
+            <Button icon={<PictureOutlined />} loading={uploadMediaMutation.isPending} onClick={() => imageInputRef.current?.click()}>上传照片</Button>
+            <Button icon={<PlayCircleOutlined />} loading={uploadMediaMutation.isPending} onClick={() => videoInputRef.current?.click()}>上传视频</Button>
           </Space>
         </div>
-        <input ref={imageInputRef} className="hidden-file-input" type="file" accept="image/*" multiple onChange={(event) => addLocalFiles(event.target.files, 'image')} />
-        <input ref={videoInputRef} className="hidden-file-input" type="file" accept="video/*" multiple onChange={(event) => addLocalFiles(event.target.files, 'video')} />
+        <input ref={imageInputRef} className="hidden-file-input" type="file" accept="image/*" multiple onChange={(event) => uploadFiles(event.target.files, 'image')} />
+        <input ref={videoInputRef} className="hidden-file-input" type="file" accept="video/*" multiple onChange={(event) => uploadFiles(event.target.files, 'video')} />
 
         <Tabs
           defaultActiveKey="all"
           items={[
-            {
-              key: 'all',
-              label: '全部',
-              children: <MediaGrid existingImages={existingImages} existingVideos={existingVideos} localMedia={localMedia} onRemoveLocal={removeLocalMedia} />,
-            },
-            {
-              key: 'photos',
-              label: '照片',
-              children: <MediaGrid existingImages={existingImages} existingVideos={[]} localMedia={localMedia.filter((item) => item.type === 'image')} onRemoveLocal={removeLocalMedia} />,
-            },
-            {
-              key: 'videos',
-              label: '视频',
-              children: <MediaGrid existingImages={[]} existingVideos={existingVideos} localMedia={localMedia.filter((item) => item.type === 'video')} onRemoveLocal={removeLocalMedia} />,
-            },
+            { key: 'all', label: '全部', children: <MediaGrid images={draftImages} videos={draftVideos} onRemoveImage={removeImage} onRemoveVideo={removeVideo} /> },
+            { key: 'photos', label: '照片', children: <MediaGrid images={draftImages} videos={[]} onRemoveImage={removeImage} onRemoveVideo={removeVideo} /> },
+            { key: 'videos', label: '视频', children: <MediaGrid images={[]} videos={draftVideos} onRemoveImage={removeImage} onRemoveVideo={removeVideo} /> },
           ]}
         />
       </Card>
@@ -274,47 +256,40 @@ export function AgentEditPage({ mode }: Props) {
 }
 
 function MediaGrid({
-  existingImages,
-  existingVideos,
-  localMedia,
-  onRemoveLocal,
+  images,
+  videos,
+  onRemoveImage,
+  onRemoveVideo,
 }: {
-  existingImages: NonNullable<AgentRecord['manifest']['social']>['galleryImages'] | undefined;
-  existingVideos: NonNullable<AgentRecord['manifest']['social']>['galleryVideos'] | undefined;
-  localMedia: LocalMedia[];
-  onRemoveLocal: (id: string) => void;
+  images: GalleryImage[];
+  videos: GalleryVideo[];
+  onRemoveImage: (index: number) => void;
+  onRemoveVideo: (index: number) => void;
 }) {
-  const savedImages = existingImages ?? [];
-  const savedVideos = existingVideos ?? [];
-  const hasItems = savedImages.length || savedVideos.length || localMedia.length;
+  const hasItems = images.length || videos.length;
   if (!hasItems) {
     return (
       <div className="empty-media-grid">
         <PlusOutlined />
-        <div>还没有媒体。先添加本地照片或视频预览。</div>
+        <div>还没有媒体。请从管理员端上传照片或视频。</div>
       </div>
     );
   }
 
   return (
     <div className="agent-media-grid">
-      {savedImages.map((item, index) => (
+      {images.map((item, index) => (
         <div className="media-tile" key={`image_${item.url}_${index}`}>
-          <img src={item.url} alt={item.alt || 'Agent image'} />
+          <img src={resolveMediaUrl(item.url)} alt={item.alt || 'Agent image'} />
           <span className="media-badge">已保存照片</span>
+          <Button size="small" danger icon={<DeleteOutlined />} className="remove-media-button" onClick={() => onRemoveImage(index)}>移除</Button>
         </div>
       ))}
-      {savedVideos.map((item, index) => (
+      {videos.map((item, index) => (
         <div className="media-tile" key={`video_${item.url}_${index}`}>
-          <video src={item.url} poster={item.posterUrl} muted controls />
+          <video src={resolveMediaUrl(item.url)} poster={resolveMediaUrl(item.posterUrl)} muted controls />
           <span className="media-badge">已保存视频</span>
-        </div>
-      ))}
-      {localMedia.map((item) => (
-        <div className="media-tile local" key={item.id}>
-          {item.type === 'image' ? <img src={item.url} alt={item.name} /> : <video src={item.url} muted controls />}
-          <span className="media-badge local">本地预览</span>
-          <Button size="small" danger className="remove-media-button" onClick={() => onRemoveLocal(item.id)}>移除</Button>
+          <Button size="small" danger icon={<DeleteOutlined />} className="remove-media-button" onClick={() => onRemoveVideo(index)}>移除</Button>
         </div>
       ))}
     </div>

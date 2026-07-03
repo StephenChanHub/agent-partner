@@ -1679,3 +1679,14 @@
   }
 }
 
+
+.agent-sync-note {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.agent-sync-note--warning {
+  color: rgba(255, 220, 160, 0.86);
+}

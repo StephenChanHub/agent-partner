@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { PrismaModule } from '../../infrastructure/database/prisma.module';
 import { AgentsController } from './agents.controller';
 import { AgentsService } from './agents.service';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [AgentsController],
   providers: [AgentsService],
   exports: [AgentsService],

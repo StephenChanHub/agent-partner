@@ -52,6 +52,7 @@ enum DeviceStatus {
 enum AgentStatus {
   DRAFT
   PUBLISHED
+  DISABLED
   ARCHIVED
 }
 

@@ -10,35 +10,35 @@ export class VoiceProfilesController {
   constructor(private readonly service: VoiceProfilesService) {}
 
   @Get()
-  list(@Query('status') status?: string) {
-    const items = this.service.list({ status });
+  async list(@Query('status') status?: string) {
+    const items = await this.service.list({ status });
     return paginated(items, { total: items.length });
   }
 
   @Post()
-  create(@Body() dto: CreateVoiceProfileDto) { return ok(this.service.create(dto)); }
+  async create(@Body() dto: CreateVoiceProfileDto) { return ok(await this.service.create(dto)); }
 
   @Get(':id')
-  get(@Param('id') id: string) { return ok(this.service.get(id)); }
+  async get(@Param('id') id: string) { return ok(await this.service.get(id)); }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateVoiceProfileDto) { return ok(this.service.update(id, dto)); }
+  async update(@Param('id') id: string, @Body() dto: UpdateVoiceProfileDto) { return ok(await this.service.update(id, dto)); }
 
   @Post(':id/test')
-  test(@Param('id') id: string, @Body() dto: TestVoiceProfileDto) { return ok(this.service.test(id, dto)); }
+  async test(@Param('id') id: string, @Body() dto: TestVoiceProfileDto) { return ok(await this.service.test(id, dto)); }
 
   @Post(':id/set-default')
-  setDefault(@Param('id') id: string) { return ok(this.service.setDefault(id)); }
+  async setDefault(@Param('id') id: string) { return ok(await this.service.setDefault(id)); }
 
   @Post(':id/publish')
-  publish(@Param('id') id: string) { return ok(this.service.publish(id)); }
+  async publish(@Param('id') id: string) { return ok(await this.service.publish(id)); }
 
   @Post(':id/disable')
-  disable(@Param('id') id: string) { return ok(this.service.disable(id)); }
+  async disable(@Param('id') id: string) { return ok(await this.service.disable(id)); }
 
   @Post(':id/preview-audio')
-  previewAudioUploadReserved(@Param('id') id: string) { return ok(this.service.previewAudioUploadReserved(id)); }
+  async previewAudioUploadReserved(@Param('id') id: string) { return ok(await this.service.previewAudioUploadReserved(id)); }
 
   @Delete(':id')
-  delete(@Param('id') id: string) { return ok(this.service.delete(id)); }
+  async delete(@Param('id') id: string) { return ok(await this.service.delete(id)); }
 }

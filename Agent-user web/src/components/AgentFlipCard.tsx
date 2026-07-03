@@ -1,5 +1,4 @@
 import {
-  type ChangeEvent,
   type CSSProperties,
   type PointerEvent,
   useEffect,
@@ -18,13 +17,6 @@ type MediaPointerState = {
   pointerId: number;
 };
 
-type LocalMediaItem = {
-  id: string;
-  type: 'image' | 'video';
-  url: string;
-  name: string;
-};
-
 type AgentFlipCardProps = {
   agent: HomeAgent;
   isActive?: boolean;
@@ -38,14 +30,6 @@ type AgentFlipCardProps = {
   className?: string;
   onStart?: (agent: HomeAgent) => void;
 };
-
-function isVideoFile(file: File) {
-  return file.type.startsWith('video/');
-}
-
-function isImageFile(file: File) {
-  return file.type.startsWith('image/');
-}
 
 function SoundWaveIcon() {
   return (
@@ -71,27 +55,20 @@ export function AgentFlipCard({
   onStart,
 }: AgentFlipCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
-  const [mediaItems, setMediaItems] = useState<LocalMediaItem[]>([]);
   const [mediaIndex, setMediaIndex] = useState(0);
 
   const mediaPointerState = useRef<MediaPointerState | null>(null);
   const mediaDragged = useRef(false);
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
-  const createdObjectUrls = useRef<string[]>([]);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
 
+  const mediaItems = agent.mediaItems ?? [];
   const currentIndex = Math.min(mediaIndex, Math.max(0, mediaItems.length - 1));
   const currentMedia = mediaItems[currentIndex] ?? null;
 
   useEffect(() => {
-    return () => {
-      createdObjectUrls.current.forEach((url) => URL.revokeObjectURL(url));
-      createdObjectUrls.current = [];
-    };
-  }, []);
-
-  useEffect(() => {
     setIsFlipped(false);
+    setMediaIndex(0);
   }, [agent.id]);
 
   useEffect(() => {
@@ -181,33 +158,6 @@ export function AgentFlipCard({
     mediaDragged.current = false;
   };
 
-  const openUploadPicker = () => {
-    if (!isActive) return;
-    uploadInputRef.current?.click();
-  };
-
-  const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).filter((file) => isImageFile(file) || isVideoFile(file));
-    if (!files.length) return;
-
-    const existingLength = mediaItems.length;
-    const nextItems = files.map((file) => {
-      const url = URL.createObjectURL(file);
-      createdObjectUrls.current.push(url);
-      return {
-        id: `${agent.id}_${Date.now()}_${file.name}_${Math.random().toString(16).slice(2)}`,
-        type: isVideoFile(file) ? ('video' as const) : ('image' as const),
-        url,
-        name: file.name,
-      };
-    });
-
-    setMediaItems((current) => [...current, ...nextItems]);
-    setMediaIndex(existingLength);
-    setIsFlipped(false);
-    event.target.value = '';
-  };
-
   const renderMediaDots = () => {
     const count = Math.max(mediaItems.length, 1);
 
@@ -275,15 +225,7 @@ export function AgentFlipCard({
       aria-hidden={!isVisible}
       style={mode === 'carousel' ? ({ '--drag-x': `${dragX}px` } as CSSProperties) : undefined}
     >
-      <input
-        ref={uploadInputRef}
-        className="media-upload-input"
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        aria-label={`Choose local image or video files for ${agent.name}`}
-        onChange={handleUpload}
-      />
+
 
       <div className="agent-card-inner">
         <div className="agent-card-face agent-card-face--front">
@@ -312,6 +254,7 @@ export function AgentFlipCard({
                         }}
                         className="media-fill"
                         src={media.url}
+                        poster={media.posterUrl}
                         muted
                         playsInline
                         preload="metadata"
@@ -329,21 +272,8 @@ export function AgentFlipCard({
               </div>
             ) : (
               <div className="empty-media-state">
-                <button
-                  className="upload-plus-button"
-                  type="button"
-                  disabled={!isActive}
-                  aria-label={`Add local media for ${agent.name}`}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onPointerUp={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openUploadPicker();
-                  }}
-                >
-                  +
-                </button>
-                <span>add local photo or video</span>
+                <div className="upload-plus-button" aria-hidden="true">+</div>
+                <span>media managed by Studio</span>
               </div>
             )}
           </div>
@@ -375,10 +305,14 @@ export function AgentFlipCard({
                 type="button"
                 disabled={!isActive}
                 aria-label={`Preview ${agent.name} voice`}
-                title="Voice preview reserved"
+                title={agent.voiceDisplayName || "Preview voice"}
                 onPointerDown={(event) => event.stopPropagation()}
                 onPointerUp={(event) => event.stopPropagation()}
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!agent.voicePreviewAudioUrl) return;
+                  voiceAudioRef.current?.play().catch(() => undefined);
+                }}
               >
                 <SoundWaveIcon />
               </button>
@@ -418,6 +352,7 @@ export function AgentFlipCard({
           {startButton('back')}
         </div>
       </div>
+      {agent.voicePreviewAudioUrl ? <audio ref={voiceAudioRef} src={agent.voicePreviewAudioUrl} preload="none" /> : null}
     </article>
   );
 }

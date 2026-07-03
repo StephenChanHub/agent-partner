@@ -116,6 +116,19 @@ export type VoiceProfile = {
   updatedAt: string;
 };
 
+
+export type MediaFile = {
+  id: string;
+  kind: 'agent-image' | 'agent-video' | 'voice-preview' | 'agent-avatar' | string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PricingRule = {
   id: string;
   key: string;

@@ -11,7 +11,7 @@ import { AgentFlipCard } from "../components/AgentFlipCard";
 import { InitialAvatar } from "../components/InitialAvatar";
 import { UserAuthModal } from "../components/UserAuthModal";
 import { useUserSession } from "../state/userSession";
-import { homeAgents } from "../config/agents";
+import { fallbackHomeAgents, type HomeAgent } from "../config/agents";
 import "./HomePage.css";
 
 const SWIPE_THRESHOLD = 54;
@@ -238,7 +238,7 @@ function getMobileMotionTransition(isDragging: boolean) {
   return SPRING_TRANSITION;
 }
 
-export function HomePage() {
+export function HomePage({ agents, loadingAgents, agentsError }: { agents: HomeAgent[]; loadingAgents?: boolean; agentsError?: string }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragY, setDragY] = useState(0);
@@ -255,7 +255,12 @@ export function HomePage() {
   const suppressNextDeckClick = useRef(false);
   const suppressClickTimerRef = useRef<number | null>(null);
 
-  const activeAgent = homeAgents[activeIndex];
+  const homeAgents = agents.length ? agents : fallbackHomeAgents;
+  const activeAgent = homeAgents[Math.min(activeIndex, Math.max(0, homeAgents.length - 1))];
+
+  useEffect(() => {
+    if (activeIndex >= homeAgents.length) setActiveIndex(0);
+  }, [activeIndex, homeAgents.length]);
 
   useEffect(() => {
     return () => {
@@ -279,7 +284,7 @@ export function HomePage() {
 
       return { agent, index, distance, isActive, isVisible };
     });
-  }, [activeIndex, isMobileCarousel]);
+  }, [activeIndex, homeAgents, isMobileCarousel]);
 
   const visibleCards = cards;
 
@@ -598,6 +603,8 @@ export function HomePage() {
       <section className="partner-stage" aria-labelledby="partner-title">
         <div className="stage-copy">
           <h1 id="partner-title">Select your partner</h1>
+          {loadingAgents ? <p className="agent-sync-note">Loading latest published agents…</p> : null}
+          {agentsError ? <p className="agent-sync-note agent-sync-note--warning">Using fallback sample agent because Core API is unavailable.</p> : null}
         </div>
 
         <div

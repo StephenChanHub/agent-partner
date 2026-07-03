@@ -22,6 +22,7 @@ import { StudioModule } from './modules/studio/studio.module';
 import { SystemModule } from './modules/system/system.module';
 import { UsageModule } from './modules/usage/usage.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { MediaModule } from './modules/media/media.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { BillingModule } from './modules/billing/billing.module';
     VoiceProfilesModule,
     UsageModule,
     BillingModule,
+    MediaModule,
   ],
 })
 export class AppModule {}

@@ -1,7 +1,7 @@
 import { ArrowLeftOutlined, AudioOutlined, DeleteOutlined, SaveOutlined, UploadOutlined } from '@ant-design/icons';
 import { App, Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Typography } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { studioApi } from '../../api/studio';
 import { API_BASE_URL } from '../../api/http';
@@ -17,15 +17,20 @@ const providerOptions = [
   { label: 'Custom', value: 'CUSTOM' },
 ];
 
+const statusOptions = [
+  { label: '已发布', value: 'PUBLISHED' },
+  { label: '启用', value: 'ACTIVE' },
+  { label: '禁用', value: 'DISABLED' },
+  { label: '归档', value: 'ARCHIVED' },
+];
+
 function resolveAudioUrl(url?: string) {
   if (!url) return undefined;
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
   return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
-type Props = {
-  mode: 'create' | 'edit';
-};
+type Props = { mode: 'create' | 'edit' };
 
 export function VoiceEditPage({ mode }: Props) {
   const { id } = useParams();
@@ -35,8 +40,6 @@ export function VoiceEditPage({ mode }: Props) {
   const queryClient = useQueryClient();
   const [form] = Form.useForm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [localAudioUrl, setLocalAudioUrl] = useState<string>();
-  const [localAudioName, setLocalAudioName] = useState<string>();
 
   const voice = useQuery({
     queryKey: ['voice-profile', id],
@@ -57,29 +60,27 @@ export function VoiceEditPage({ mode }: Props) {
         defaultSpeed: 1,
         defaultStability: 0.5,
         defaultSimilarityBoost: 0.75,
-        status: 'DRAFT',
+        status: 'PUBLISHED',
       });
       return;
     }
     const record = voice.data;
     if (!record) return;
-    form.setFieldsValue({
-      ...record,
-      previewAudioUrl: record.previewAudioUrl ?? record.previewUrl,
-    });
+    form.setFieldsValue({ ...record, previewAudioUrl: record.previewAudioUrl ?? record.previewUrl });
   }, [form, isEdit, voice.data]);
 
-  useEffect(() => () => {
-    if (localAudioUrl?.startsWith('blob:')) URL.revokeObjectURL(localAudioUrl);
-  }, [localAudioUrl]);
+  const uploadAudioMutation = useMutation({
+    mutationFn: (file: File) => studioApi.uploadMedia(file, 'voice-preview'),
+    onSuccess: (file) => {
+      form.setFieldsValue({ previewAudioUrl: file.url });
+      message.success('试听音频已上传到后端 media-storage，并写入 Preview Audio URL');
+    },
+    onError: (error) => message.error(error instanceof Error ? error.message : '试听音频上传失败'),
+  });
 
   const saveMutation = useMutation({
     mutationFn: async (values: any) => {
-      const payload = {
-        ...values,
-        previewAudioUrl: values.previewAudioUrl || undefined,
-      };
-      // 本地选择的试听音频只用于当前浏览器预览，不随保存提交。
+      const payload = { ...values, previewAudioUrl: values.previewAudioUrl || undefined };
       return isEdit && id ? studioApi.updateVoiceProfile(id, payload) : studioApi.createVoiceProfile(payload);
     },
     onSuccess: async (saved) => {
@@ -102,32 +103,27 @@ export function VoiceEditPage({ mode }: Props) {
 
   const values = Form.useWatch([], form) ?? {};
   const remotePreviewUrl = resolveAudioUrl(values.previewAudioUrl ?? voice.data?.previewAudioUrl ?? voice.data?.previewUrl);
-  const currentAudioUrl = localAudioUrl || remotePreviewUrl;
   const previewTitle = values.displayName || voice.data?.displayName || 'New Voice Profile';
   const provider = values.provider || voice.data?.provider || 'MOCK';
 
-  const onLocalAudioChange = (files: FileList | null) => {
+  const onAudioChange = (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
-    if (localAudioUrl?.startsWith('blob:')) URL.revokeObjectURL(localAudioUrl);
-    setLocalAudioUrl(URL.createObjectURL(file));
-    setLocalAudioName(file.name);
-    message.info('已添加本地试听音频预览。沙盒阶段不会上传到 Ubuntu Core，也不会写入后端。');
+    uploadAudioMutation.mutate(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const clearLocalAudio = () => {
-    if (localAudioUrl?.startsWith('blob:')) URL.revokeObjectURL(localAudioUrl);
-    setLocalAudioUrl(undefined);
-    setLocalAudioName(undefined);
+  const clearPreviewAudio = () => {
+    form.setFieldsValue({ previewAudioUrl: '' });
   };
 
-  const statusValue = useMemo(() => voice.data?.status ?? values.status ?? 'DRAFT', [values.status, voice.data?.status]);
+  const statusValue = useMemo(() => voice.data?.status ?? values.status ?? 'PUBLISHED', [values.status, voice.data?.status]);
 
   return (
     <div>
       <PageHeader
         title={isEdit ? 'Voice Profile 编辑' : '新建 Voice Profile'}
-        description="独立管理声音配置和试听样音；本地上传的试听音频只做浏览器预览，不上传虚拟机。"
+        description="独立管理声音配置和真实试听样音；上传的音频会保存到后端 media-storage，Agent 和客户端通过 previewAudioUrl 获取。"
         actions={
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/voice-profiles')}>返回列表</Button>
@@ -150,8 +146,7 @@ export function VoiceEditPage({ mode }: Props) {
               Voice Profile 是声音资源的主人。Agent 只保存 voice.profileId，并通过这里的 previewAudioUrl 展示试听。
             </Typography.Paragraph>
             <div className="voice-audio-panel">
-              {currentAudioUrl ? <audio controls src={currentAudioUrl} /> : <Typography.Text type="secondary">暂无试听音频</Typography.Text>}
-              {localAudioName ? <Typography.Text type="secondary">本地预览：{localAudioName}</Typography.Text> : null}
+              {remotePreviewUrl ? <audio controls src={remotePreviewUrl} /> : <Typography.Text type="secondary">暂无试听音频</Typography.Text>}
             </div>
           </div>
         </div>
@@ -168,6 +163,9 @@ export function VoiceEditPage({ mode }: Props) {
               <Form.Item name="voiceId" label="Voice ID" rules={[{ required: true, message: '请输入 Voice ID' }]}><Input placeholder="ElevenLabs voice id / mock voice id" /></Form.Item>
             </Col>
             <Col xs={24} md={12}>
+              <Form.Item name="status" label="状态"><Select options={statusOptions} /></Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
               <Form.Item name="modelId" label="Model ID"><Input placeholder="eleven_v3 / eleven_multilingual_v2 / mock-tts" /></Form.Item>
             </Col>
             <Col xs={24} md={12}>
@@ -180,7 +178,7 @@ export function VoiceEditPage({ mode }: Props) {
               <Form.Item name="description" label="说明"><Input.TextArea rows={3} placeholder="用于说明这个声音的风格、适用 Agent 和限制" /></Form.Item>
             </Col>
             <Col xs={24}>
-              <Form.Item name="previewAudioUrl" label="Preview Audio URL"><Input placeholder="后端已有试听音频地址；本地上传预览不会写入这里" /></Form.Item>
+              <Form.Item name="previewAudioUrl" label="Preview Audio URL"><Input placeholder="上传试听音频后自动填入 /media/files/voice-preview/..." /></Form.Item>
             </Col>
             <Col xs={24} md={8}>
               <Form.Item name="defaultSpeed" label="Speed"><InputNumber min={0.5} max={2} step={0.1} style={{ width: '100%' }} /></Form.Item>
@@ -198,17 +196,17 @@ export function VoiceEditPage({ mode }: Props) {
       <Card className="ios-card voice-local-preview-card">
         <div className="media-toolbar">
           <div>
-            <Typography.Title level={4}>试听音频本地预览</Typography.Title>
-            <Typography.Text type="secondary">选择本地 mp3 / wav / m4a 只会生成浏览器 object URL，不上传到 Ubuntu Core。</Typography.Text>
+            <Typography.Title level={4}>试听音频上传</Typography.Title>
+            <Typography.Text type="secondary">选择 mp3 / wav / m4a 后会上传到后端媒体目录，并返回可被管理员端与客户端共同访问的 URL。</Typography.Text>
           </div>
           <Space wrap>
-            <Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>选择本地音频</Button>
-            <Button icon={<DeleteOutlined />} disabled={!localAudioUrl} onClick={clearLocalAudio}>移除本地预览</Button>
+            <Button icon={<UploadOutlined />} loading={uploadAudioMutation.isPending} onClick={() => fileInputRef.current?.click()}>上传试听音频</Button>
+            <Button icon={<DeleteOutlined />} onClick={clearPreviewAudio}>清空 Preview URL</Button>
           </Space>
         </div>
-        <input ref={fileInputRef} className="hidden-file-input" type="file" accept="audio/*" onChange={(event) => onLocalAudioChange(event.target.files)} />
+        <input ref={fileInputRef} className="hidden-file-input" type="file" accept="audio/*" onChange={(event) => onAudioChange(event.target.files)} />
         <div className="voice-upload-note">
-          <b>沙盒规则：</b>保存 Voice Profile 时不会提交本地音频文件。后续真实上传再预留接口 <code>POST /studio/voice-profiles/:id/preview-audio</code>。
+          <b>真实链路：</b><code>POST /studio/media/upload?kind=voice-preview</code> → 后端 <code>media-storage/voice-preview</code> → 保存到 <code>VoiceProfile.previewAudioUrl</code>。
         </div>
       </Card>
     </div>

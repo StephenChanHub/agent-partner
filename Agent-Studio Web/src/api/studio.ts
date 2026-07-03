@@ -1,4 +1,4 @@
-import { deleteData, getData, getPage, patchData, postData } from './http';
+import { deleteData, getData, getPage, http, patchData, postData, unwrap } from './http';
 import type {
   AdminUser,
   AgentRecord,
@@ -12,6 +12,7 @@ import type {
   TokenTransaction,
   UsageRecord,
   VoiceProfile,
+  MediaFile,
 } from '../types/api';
 
 export const studioApi = {
@@ -57,6 +58,19 @@ export const studioApi = {
   publishVoiceProfile: async (id: string) => postData<VoiceProfile>(`/studio/voice-profiles/${id}/publish`),
   disableVoiceProfile: async (id: string) => postData<VoiceProfile>(`/studio/voice-profiles/${id}/disable`),
   deleteVoiceProfile: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/voice-profiles/${id}`),
+
+
+  uploadMedia: async (file: File, kind: 'agent-image' | 'agent-video' | 'voice-preview' | 'agent-avatar') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', kind);
+    const { data } = await http.post('/studio/media/upload', formData, {
+      params: { kind },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return unwrap<MediaFile>(data);
+  },
+  mediaFiles: async (kind?: string) => getPage<MediaFile>('/studio/media/files', kind ? { kind } : undefined),
 
   rechargeOrders: async (params?: Record<string, unknown>) => getPage<RechargeOrder>('/studio/recharge-orders', params),
   confirmRechargeOrder: async (id: string) => postData<{ order: RechargeOrder; alreadyPaid: boolean }>(`/studio/recharge-orders/${id}/confirm`),
