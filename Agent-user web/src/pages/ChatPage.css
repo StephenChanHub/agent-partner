@@ -1219,3 +1219,9 @@
     top: 0 !important;
   }
 }
+
+/* Chat real-data controls: audio messages can play/pause; messages without audio do not render a play control. */
+.message-icon-button--playing {
+  color: var(--agent-blue);
+  background: rgba(255, 255, 255, 0.96);
+}

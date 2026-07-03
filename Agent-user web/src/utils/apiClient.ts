@@ -23,7 +23,7 @@ function getApiBase(): string {
     (typeof import.meta !== 'undefined' &&
       (import.meta as any).env?.VITE_API_BASE_URL) ||
     'http://192.168.64.2:3000/api';
-  return _apiBase;
+  return _apiBase as string;
 }
 
 export async function apiGet<T>(path: string): Promise<T> {

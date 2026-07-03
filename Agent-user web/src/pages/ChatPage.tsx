@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AgentFlipCard } from '../components/AgentFlipCard';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { type HomeAgent } from '../config/agents';
@@ -9,43 +9,13 @@ type ChatPageProps = {
   agent: HomeAgent;
 };
 
-type DemoMessage = {
+type ChatMessage = {
   id: string;
   role: 'user' | 'agent';
   text: string;
-  status?: 'thinking' | 'speaking' | 'ready';
+  status?: 'thinking' | 'ready';
+  audioUrl?: string;
 };
-
-const demoMessages: DemoMessage[] = [
-  {
-    id: 'msg_001',
-    role: 'agent',
-    text: 'Hi, I am ready. Tell me what you want to plan, write, or think through today.',
-    status: 'ready',
-  },
-  {
-    id: 'msg_002',
-    role: 'user',
-    text: 'I want to build a calmer daily routine, but I do not want it to feel strict.',
-  },
-  {
-    id: 'msg_003',
-    role: 'agent',
-    text: 'Thinking through a soft structure for you…',
-    status: 'thinking',
-  },
-  {
-    id: 'msg_004',
-    role: 'agent',
-    text: 'Let us make it simple: one anchor in the morning, one reset in the afternoon, and one quiet closing ritual at night.',
-    status: 'speaking',
-  },
-  {
-    id: 'msg_005',
-    role: 'user',
-    text: 'That sounds good. Start with the morning anchor.',
-  },
-];
 
 function goBackHome() {
   window.history.pushState({}, '', '/');
@@ -57,11 +27,39 @@ function goToWallet() {
   window.dispatchEvent(new Event('agent-user-web:navigate'));
 }
 
-function getStatusLabel(status?: DemoMessage['status']) {
+function getStatusLabel(status?: ChatMessage['status']) {
   if (status === 'thinking') return 'thinking';
-  if (status === 'speaking') return 'ready to play';
   if (status === 'ready') return 'ready';
   return '';
+}
+
+function buildAgentIntroMessage(agent: HomeAgent): ChatMessage {
+  const description = agent.description?.trim() || 'I am ready to chat with you.';
+  return {
+    id: `agent_intro_${agent.id}_${agent.slug}`,
+    role: 'agent',
+    text: `Hi, I’m ${agent.name}. ${description}`,
+    status: 'ready',
+    audioUrl: agent.voicePreviewAudioUrl || undefined,
+  };
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '-9999px';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
 }
 
 function CopyIcon() {
@@ -77,6 +75,15 @@ function PlayIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M8.25 6.625c0-1.284 1.394-2.084 2.504-1.438l8.038 4.688c1.1.642 1.1 2.233 0 2.875l-8.038 4.688c-1.11.647-2.504-.154-2.504-1.438V6.625Z" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7.5 5.75A1.75 1.75 0 0 1 9.25 4h.5a1.75 1.75 0 0 1 1.75 1.75v12.5A1.75 1.75 0 0 1 9.75 20h-.5a1.75 1.75 0 0 1-1.75-1.75V5.75Z" />
+      <path d="M12.5 5.75A1.75 1.75 0 0 1 14.25 4h.5a1.75 1.75 0 0 1 1.75 1.75v12.5A1.75 1.75 0 0 1 14.75 20h-.5a1.75 1.75 0 0 1-1.75-1.75V5.75Z" />
     </svg>
   );
 }
@@ -98,18 +105,23 @@ function MicIcon() {
   );
 }
 
-function makeAgentReply(userText: string, agentName: string) {
-  const shortText = userText.length > 58 ? `${userText.slice(0, 58)}…` : userText;
-  return `${agentName} is thinking with you. I received “${shortText}”. For now this is a sandbox reply, but the flow is ready for Core chat API integration.`;
-}
-
 export function ChatPage({ agent }: ChatPageProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const session = useUserSession();
-  const [messages, setMessages] = useState<DemoMessage[]>(demoMessages);
+  const introMessage = useMemo(() => buildAgentIntroMessage(agent), [agent]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [introMessage]);
   const [draft, setDraft] = useState('');
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const messagesRef = useRef<HTMLElement | null>(null);
-  const timersRef = useRef<number[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    audioRef.current?.pause();
+    setPlayingMessageId(null);
+    setMessages([introMessage]);
+  }, [introMessage]);
 
   useEffect(() => {
     const element = messagesRef.current;
@@ -119,25 +131,66 @@ export function ChatPage({ agent }: ChatPageProps) {
 
   useEffect(() => {
     return () => {
-      timersRef.current.forEach((timer) => window.clearTimeout(timer));
-      timersRef.current = [];
+      audioRef.current?.pause();
+      audioRef.current = null;
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
     };
   }, []);
+
+  const handleCopyMessage = async (message: ChatMessage) => {
+    try {
+      await copyTextToClipboard(message.text);
+      setCopiedMessageId(message.id);
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageId(null);
+        copyTimerRef.current = null;
+      }, 1200);
+    } catch (error) {
+      console.error('Copy message failed', error);
+    }
+  };
+
+  const toggleMessageAudio = (message: ChatMessage) => {
+    if (!message.audioUrl) return;
+
+    if (playingMessageId === message.id && audioRef.current) {
+      audioRef.current.pause();
+      setPlayingMessageId(null);
+      return;
+    }
+
+    audioRef.current?.pause();
+    const audio = new Audio(message.audioUrl);
+    audioRef.current = audio;
+    setPlayingMessageId(message.id);
+    audio.addEventListener('ended', () => setPlayingMessageId(null), { once: true });
+    audio.addEventListener('pause', () => {
+      if (audioRef.current === audio && !audio.ended) setPlayingMessageId(null);
+    });
+    void audio.play().catch((error) => {
+      console.error('Play message audio failed', error);
+      if (audioRef.current === audio) audioRef.current = null;
+      setPlayingMessageId(null);
+    });
+  };
 
   const sendMessage = () => {
     const text = draft.trim();
     if (!text) return;
 
     const now = Date.now();
-    const thinkingId = `msg_agent_thinking_${now}`;
-    const replyId = `msg_agent_reply_${now}`;
-    const userMessage: DemoMessage = {
+    const userMessage: ChatMessage = {
       id: `msg_user_${now}`,
       role: 'user',
       text,
     };
-    const thinkingMessage: DemoMessage = {
-      id: thinkingId,
+    const thinkingMessage: ChatMessage = {
+      id: `msg_agent_thinking_${now}`,
       role: 'agent',
       text: `${agent.name} is thinking…`,
       status: 'thinking',
@@ -145,36 +198,6 @@ export function ChatPage({ agent }: ChatPageProps) {
 
     setMessages((current) => [...current, userMessage, thinkingMessage]);
     setDraft('');
-
-    const replyTimer = window.setTimeout(() => {
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === thinkingId
-            ? {
-                ...message,
-                id: replyId,
-                text: makeAgentReply(text, agent.name),
-                status: 'speaking',
-              }
-            : message,
-        ),
-      );
-    }, 1100);
-
-    const readyTimer = window.setTimeout(() => {
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === replyId && message.status === 'speaking'
-            ? {
-                ...message,
-                status: 'ready',
-              }
-            : message,
-        ),
-      );
-    }, 2200);
-
-    timersRef.current.push(replyTimer, readyTimer);
   };
 
   return (
@@ -202,6 +225,7 @@ export function ChatPage({ agent }: ChatPageProps) {
       <section ref={messagesRef} className="chat-messages" aria-label="Conversation preview">
         {messages.map((message) => {
           const statusLabel = getStatusLabel(message.status);
+          const isPlaying = playingMessageId === message.id;
           return (
             <article key={message.id} className={`message-row message-row--${message.role}`}>
               <div className="message-stack">
@@ -223,14 +247,22 @@ export function ChatPage({ agent }: ChatPageProps) {
                       className="message-icon-button"
                       type="button"
                       aria-label="Copy message"
-                      title="Copy"
-                      onClick={() => void navigator.clipboard?.writeText(message.text)}
+                      title={copiedMessageId === message.id ? 'Copied' : 'Copy'}
+                      onClick={() => void handleCopyMessage(message)}
                     >
                       <CopyIcon />
                     </button>
-                    <button className="message-icon-button" type="button" aria-label="Play message audio" title="Play">
-                      <PlayIcon />
-                    </button>
+                    {message.audioUrl ? (
+                      <button
+                        className={`message-icon-button${isPlaying ? ' message-icon-button--playing' : ''}`}
+                        type="button"
+                        aria-label={isPlaying ? 'Pause message audio' : 'Play message audio'}
+                        title={isPlaying ? 'Pause' : 'Play'}
+                        onClick={() => toggleMessageAudio(message)}
+                      >
+                        {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

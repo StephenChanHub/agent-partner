@@ -22,7 +22,7 @@ function getMediaBase(): string {
     (typeof import.meta !== 'undefined' &&
       (import.meta as any).env?.VITE_API_BASE_URL) ||
     'http://192.168.64.2:3000/api';
-  return _mediaBase;
+  return _mediaBase as string;
 }
 
 export type HomeAgentMedia = {
