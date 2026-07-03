@@ -506,7 +506,7 @@
   z-index: 1;
   margin: 0;
   max-width: 290px;
-  color: rgba(23, 25, 31, 0.58);
+  color: #17191f;
   font-size: clamp(14px, 2.1vw, 16px);
   line-height: 1.56;
   font-weight: 520;
