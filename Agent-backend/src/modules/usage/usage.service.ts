@@ -58,7 +58,29 @@ export class UsageService {
 
   getAllUsageRecords(query: any = {}) {
     const userId = query.userId;
-    return mockUsageRecords.filter((record) => !userId || record.userId === userId);
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const pageSize = Math.max(Number(query.pageSize ?? 10), 1);
+
+    if (this.prisma.isMockMode) {
+      const filtered = mockUsageRecords
+        .filter((record) => !userId || record.userId === userId)
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const start = (page - 1) * pageSize;
+      return { items: filtered.slice(start, start + pageSize), total: filtered.length };
+    }
+
+    // Real DB mode — delegate to prisma with pagination
+    const where = userId ? { userId } : {};
+    const [items, total] = [
+      (this.prisma.db as any).usageRecord.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma.db as any).usageRecord.count({ where }),
+    ];
+    return { items, total };
   }
 
   async getUserUsage(userId: string) {

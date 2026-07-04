@@ -14,9 +14,11 @@ export class UsageController {
   async getMyUsageRecords(@Headers('authorization') authorization?: string) { return ok(await this.usageService.getMyUsageRecords(authorization)); }
 
   @Get('studio/usage-records')
-  getAllUsageRecords(@Query() query: any) {
-    const items = this.usageService.getAllUsageRecords(query);
-    return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), total: items.length });
+  async getAllUsageRecords(@Query() query: any) {
+    const result = await this.usageService.getAllUsageRecords(query);
+    const items = Array.isArray(result) ? result : result.items;
+    const total = Array.isArray(result) ? result.length : (result.total ?? items.length);
+    return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 10), total });
   }
 
   @Get('studio/users/:id/usage')

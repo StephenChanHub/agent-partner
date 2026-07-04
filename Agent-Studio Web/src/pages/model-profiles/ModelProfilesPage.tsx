@@ -90,8 +90,8 @@ export function ModelProfilesPage() {
         <Form.Item name="apiKey" label={editing?.apiKeyConfigured ? 'API Key（已配置 ' + (editing.apiKeyMasked || '****') + '，留空保持不变）' : 'API Key'}>
           <Input.Password placeholder={editing?.apiKeyConfigured ? '留空则保持不变' : 'sk-xxx'} />
         </Form.Item>
-        <Form.Item name="defaultTemperature" label="Temperature"><InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} /></Form.Item>
-        <Form.Item name="defaultMaxTokens" label="Max Tokens"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+        <Form.Item name="defaultTemperature" label="Temperature" extra="控制回复的随机性。0 = 确定性，1 = 较随机，2 = 非常随机。默认 0.7 适合大多数场景。"><InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} /></Form.Item>
+        <Form.Item name="defaultMaxTokens" label="Max Tokens" extra="单次回复最大 Token 数。值越小回复越短，值越大回复越长。注意：超长回复可能触发阶梯加费。默认 512。"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
       </Form>
     </Drawer>
   </div>;

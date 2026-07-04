@@ -134,19 +134,30 @@ export class RechargeOrderService implements OnModuleInit, OnModuleDestroy {
   async listAll(query: any = {}) {
     const status = query.status;
     await this.expireStalePendingOrders();
+    const page = Math.max(Number(query.page ?? 1), 1);
+    const pageSize = Math.max(Number(query.pageSize ?? 10), 1);
 
     if (this.prisma.isMockMode) {
-      return mockRechargeOrders
+      const filtered = mockRechargeOrders
         .filter((order) => !status || order.status === status)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const start = (page - 1) * pageSize;
+      return { items: filtered.slice(start, start + pageSize), total: filtered.length };
     }
 
-    const items = await (this.prisma.db as any).rechargeOrder.findMany({
-      where: status ? { status } : undefined,
-      include: { user: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    return items.map((item: any) => this.serializeOrder(item));
+    const [items, total] = await Promise.all([
+      (this.prisma.db as any).rechargeOrder.findMany({
+        where: status ? { status } : undefined,
+        include: { user: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      (this.prisma.db as any).rechargeOrder.count({
+        where: status ? { status } : undefined,
+      }),
+    ]);
+    return { items: items.map((item: any) => this.serializeOrder(item)), total };
   }
 
   async getForCurrentUser(id: string, authorization?: string) {

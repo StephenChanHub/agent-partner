@@ -186,8 +186,8 @@ export function WalletPage() {
       walletApi.getBalance(),
     ]);
     const nextBalance = usage.balanceAgentTokens;
-    setOrders(mapApiOrders(apiOrders.items));
-    setTransactions(mapApiTransactions(apiTransactions.items));
+    setOrders(mapApiOrders(apiOrders.items).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    setTransactions(mapApiTransactions(apiTransactions.items).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     setBalance(nextBalance);
     updateUserSession({ tokens: nextBalance });
   }, [isLoggedIn]);

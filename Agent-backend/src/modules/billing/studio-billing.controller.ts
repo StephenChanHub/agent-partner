@@ -24,8 +24,10 @@ export class StudioBillingController {
 
   @Get('recharge-orders')
   async listRechargeOrders(@Query() query: any) {
-    const items = await this.orders.listAll(query);
-    return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), total: items.length });
+    const result = await this.orders.listAll(query);
+    const items = Array.isArray(result) ? result : result.items;
+    const total = Array.isArray(result) ? result.length : (result.total ?? items.length);
+    return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 10), total });
   }
 
   @Get('recharge-orders/:id')
@@ -45,8 +47,10 @@ export class StudioBillingController {
 
   @Get('token-transactions')
   async listTokenTransactions(@Query() query: any) {
-    const items = await this.transactions.listAll(query);
-    return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 20), total: items.length });
+    const result = await this.transactions.listAll(query);
+    const items = Array.isArray(result) ? result : result.items;
+    const total = Array.isArray(result) ? result.length : (result.total ?? items.length);
+    return paginated(items, { page: Number(query.page ?? 1), pageSize: Number(query.pageSize ?? 10), total });
   }
 
   @Get('billing/packages')
