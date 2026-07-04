@@ -12,12 +12,11 @@ export class DeepSeekLLMAdapter implements LLMPort {
     const model = input.model || this.config.value.llm.deepSeekModel || 'deepseek-chat';
 
     if (!apiKey) {
-      // v1.6 placeholder behavior: keep API usable until the real key is configured.
       return {
-        content: `Mock DeepSeek response: ${input.userMessage}`,
-        provider: 'mock-deepseek-placeholder',
+        content: 'LLM connection failed.',
+        provider: 'deepseek',
         model,
-        usage: { inputTokens: 1000, outputTokens: 200, totalTokens: 1200 },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       };
     }
 
@@ -55,12 +54,29 @@ export class DeepSeekLLMAdapter implements LLMPort {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'unknown');
-        throw new Error(`DeepSeek API error ${response.status}: ${errorText}`);
+        console.error(`[DeepSeekLLMAdapter] API error ${response.status}: ${errorText}`);
+        return {
+          content: 'LLM connection failed.',
+          provider: 'deepseek',
+          model,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        };
       }
 
       const data = await response.json() as any;
       const choice = data?.choices?.[0];
       const content = choice?.message?.content ?? '';
+
+      if (!content) {
+        console.error('[DeepSeekLLMAdapter] Empty response from API');
+        return {
+          content: 'LLM connection failed.',
+          provider: 'deepseek',
+          model,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        };
+      }
+
       const usage = data?.usage;
 
       return {
@@ -74,13 +90,12 @@ export class DeepSeekLLMAdapter implements LLMPort {
         },
       };
     } catch (error: any) {
-      // Fallback to mock on network errors so the app doesn't crash in dev.
-      console.error('[DeepSeekLLMAdapter] API call failed, falling back to mock:', error?.message ?? error);
+      console.error('[DeepSeekLLMAdapter] Connection failed:', error?.message ?? error);
       return {
-        content: `[DeepSeek error: ${error?.message ?? 'unknown'}] Mock fallback: ${input.userMessage}`,
-        provider: 'deepseek-fallback',
+        content: 'LLM connection failed.',
+        provider: 'deepseek',
         model,
-        usage: { inputTokens: 1000, outputTokens: 200, totalTokens: 1200 },
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       };
     }
   }
