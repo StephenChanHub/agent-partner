@@ -13,9 +13,17 @@ export class BillingGuardService {
     return this.pricingRules.numberValue('minimumVoiceBalance', 1000);
   }
 
+  private async isEnforce(): Promise<boolean> {
+    const envMode = process.env.BILLING_MODE;
+    if (envMode === 'TRACK_ONLY') return false;
+    if (envMode === 'ENFORCE') return true;
+    // Default to ENFORCE — can be overridden by pricing rule
+    const ruleValue = await this.pricingRules.numberValue('billingMode', 1); // 1=enforce, 0=track
+    return ruleValue !== 0;
+  }
+
   async assertCanStartTextChat(balanceAgentTokens: number): Promise<void> {
-    const billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
-    if (billingMode !== 'ENFORCE') return;
+    if (!(await this.isEnforce())) return;
 
     const minBalance = await this.getMinTextBalance();
     if (balanceAgentTokens < minBalance) {
@@ -26,8 +34,7 @@ export class BillingGuardService {
   }
 
   async assertCanStartVoiceChat(balanceAgentTokens: number): Promise<void> {
-    const billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
-    if (billingMode !== 'ENFORCE') return;
+    if (!(await this.isEnforce())) return;
 
     const minBalance = await this.getMinVoiceBalance();
     if (balanceAgentTokens < minBalance) {
@@ -38,8 +45,7 @@ export class BillingGuardService {
   }
 
   canGenerateVoice(balanceAfterTextCharge: number, estimatedTtsAgentTokens: number) {
-    const billingMode = process.env.BILLING_MODE ?? 'TRACK_ONLY';
-    if (billingMode !== 'ENFORCE') return true;
+    // Voice generation cost check is always soft — no async in sync context
     return balanceAfterTextCharge >= estimatedTtsAgentTokens;
   }
 }

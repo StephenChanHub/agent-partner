@@ -27,6 +27,12 @@ export class ModelProfilesController {
   @Post(':id/set-default')
   setDefault(@Param('id') id: string) { return ok(this.service.setDefault(id)); }
 
+  @Post(':id/enable')
+  enable(@Param('id') id: string) { return ok(this.service.enable(id)); }
+
+  @Post(':id/disable')
+  disable(@Param('id') id: string) { return ok(this.service.disable(id)); }
+
   @Delete(':id')
   delete(@Param('id') id: string) { return ok(this.service.delete(id)); }
 }

@@ -120,4 +120,19 @@ export class ModelProfilesService {
     mockModelProfiles.splice(index, 1);
     return { deleted: true, id };
   }
+
+  enable(id: string) {
+    const item = this.get(id) as any;
+    item.status = 'ACTIVE';
+    item.updatedAt = new Date().toISOString();
+    return item;
+  }
+
+  disable(id: string) {
+    const item = this.get(id) as any;
+    item.status = 'DISABLED';
+    item.isDefault = false;
+    item.updatedAt = new Date().toISOString();
+    return item;
+  }
 }

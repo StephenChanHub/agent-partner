@@ -47,6 +47,8 @@ export const studioApi = {
   updateModelProfile: async (id: string, payload: unknown) => patchData<ModelProfile>(`/studio/model-profiles/${id}`, payload),
   testModelProfile: async (id: string, prompt: string) => postData(`/studio/model-profiles/${id}/test`, { prompt }),
   setDefaultModelProfile: async (id: string) => postData<ModelProfile>(`/studio/model-profiles/${id}/set-default`),
+  enableModelProfile: async (id: string) => postData<ModelProfile>(`/studio/model-profiles/${id}/enable`),
+  disableModelProfile: async (id: string) => postData<ModelProfile>(`/studio/model-profiles/${id}/disable`),
   deleteModelProfile: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/model-profiles/${id}`),
 
   voiceProfiles: async (params?: Record<string, unknown>) => getPage<VoiceProfile>('/studio/voice-profiles', params),

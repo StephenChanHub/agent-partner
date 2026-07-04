@@ -3,7 +3,7 @@ import { AgentFlipCard } from '../components/AgentFlipCard';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { type HomeAgent } from '../config/agents';
 import { isUserLoggedIn, requestUserAuth, updateUserSession, useUserSession } from '../state/userSession';
-import { apiPost } from '../utils/apiClient';
+import { apiGet, apiPost } from '../utils/apiClient';
 import './ChatPage.css';
 
 type ChatPageProps = {
@@ -33,6 +33,16 @@ type ChatApiResponse = {
     model: string;
   };
   mode: string;
+};
+
+type SessionMessagesResponse = {
+  sessionId: string;
+  items: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+  }>;
 };
 
 function goBackHome() {
@@ -136,12 +146,50 @@ export function ChatPage({ agent }: ChatPageProps) {
   const copyTimerRef = useRef<number | null>(null);
 
   const [insufficientBalance, setInsufficientBalance] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Load persisted messages from backend on mount
+  useEffect(() => {
+    if (!isUserLoggedIn(session)) {
+      setMessages([introMessage]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        // Get or create session
+        const sess: any = await apiPost('/agent-sessions', { agentSlug: agent.slug });
+        if (cancelled || !sess?.id) return;
+        setSessionId(sess.id);
+
+        // Load messages
+        const msgData: any = await apiGet(`/agent-sessions/${sess.id}/messages`);
+        const items = msgData?.items ?? [];
+        const loaded: ChatMessage[] = items
+          .filter((m: any) => m.content?.trim())
+          .map((m: any) => ({
+            id: m.id,
+            role: m.role === 'user' ? 'user' : 'agent',
+            text: m.content,
+            status: 'ready' as const,
+          }));
+        if (loaded.length > 0) {
+          setMessages(loaded);
+        } else {
+          setMessages([introMessage]);
+        }
+      } catch {
+        setMessages([introMessage]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [agent.slug, session.isLoggedIn, session.accessToken]);
 
   useEffect(() => {
     audioRef.current?.pause();
     setPlayingMessageId(null);
-    setMessages([introMessage]);
     setInsufficientBalance(false);
+    setSessionId(null);
   }, [introMessage]);
 
   useEffect(() => {
@@ -232,7 +280,7 @@ export function ChatPage({ agent }: ChatPageProps) {
       const result = await apiPost<ChatApiResponse>('/chat', {
         agentSlug: agent.slug,
         message: text,
-        sessionId: undefined,
+        sessionId: sessionId,
         client: 'web',
       });
 
@@ -249,6 +297,9 @@ export function ChatPage({ agent }: ChatPageProps) {
           msg.id === thinkingMessage.id ? assistantMessage : msg,
         ),
       );
+
+      // Persist session ID for subsequent messages
+      if (result.sessionId) setSessionId(result.sessionId);
 
       // Update session token balance
       updateUserSession({ tokens: result.usage.balanceAfter });
