@@ -4,7 +4,22 @@ import { InitialAvatar } from '../components/InitialAvatar';
 import { type HomeAgent } from '../config/agents';
 import { isUserLoggedIn, requestUserAuth, updateUserSession, useUserSession } from '../state/userSession';
 import { apiGet, apiPost } from '../utils/apiClient';
+import { marked } from 'marked';
 import './ChatPage.css';
+
+// Configure marked for safe rendering
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
+function renderMarkdown(text: string): string {
+  try {
+    return marked.parse(text) as string;
+  } catch {
+    return text;
+  }
+}
 
 type ChatPageProps = {
   agent: HomeAgent;
@@ -370,7 +385,14 @@ export function ChatPage({ agent }: ChatPageProps) {
                       <span />
                     </div>
                   ) : null}
-                  <p>{message.text}</p>
+                  {message.role === 'agent' && message.status !== 'thinking' ? (
+                    <div
+                      className="message-markdown"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
+                    />
+                  ) : (
+                    <p>{message.text}</p>
+                  )}
                 </div>
 
                 <div className="message-meta-line">

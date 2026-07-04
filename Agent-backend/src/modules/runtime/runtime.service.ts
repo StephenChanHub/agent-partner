@@ -162,10 +162,10 @@ export class RuntimeService {
       model: modelName,
     });
 
-    // 8. Calculate usage
+    // 8. Calculate usage with tiered pricing + real cost tracking
     const inputTokens = llmResult.usage?.inputTokens ?? 0;
     const outputTokens = llmResult.usage?.outputTokens ?? 0;
-    const usage = await this.usageMeter.fromDeepSeekUsage(inputTokens, outputTokens, 0);
+    const usage = await this.usageMeter.fromDetailedLLM(inputTokens, outputTokens, 0);
     const costTokens = usage.costTokens;
 
     // 9. Atomic deduction
@@ -190,8 +190,12 @@ export class RuntimeService {
         model: llmResult.model,
         inputTokens,
         outputTokens,
+        totalTokens: usage.totalTokens,
         ttsCharacters: 0,
         costTokens,
+        rawCostCny: usage.rawCostCny,
+        profitRatio: usage.profitRatio,
+        isLoss: usage.isLoss,
         createdAt: new Date().toISOString(),
       };
       mockUsageRecords.push(usageRecord);
@@ -234,8 +238,8 @@ export class RuntimeService {
             totalTokens: inputTokens + outputTokens,
             costTokens,
             rawCostCny: usage.rawCostCny ?? 0,
-            billingMultiplier: usage.billingMultiplier ?? 1.5,
-            pricingSnapshot: usage.pricingSnapshot ?? {},
+            billingMultiplier: usage.profitRatio ?? 1.5,
+            pricingSnapshot: { tier: usage.tier, tierSize: usage.tierSize, isLoss: usage.isLoss },
           },
         });
 
@@ -332,10 +336,17 @@ export class RuntimeService {
         outputTokens,
         totalTokens: inputTokens + outputTokens,
         costAgentTokens: costTokens,
+        tier: usage.tier,
         balanceBefore: currentBalance,
         balanceAfter: newBalance,
         provider: llmResult.provider,
         model: llmResult.model,
+        // Profit tracking (backend only — not shown to users)
+        profit: {
+          rawCostCny: usage.rawCostCny,
+          profitRatio: usage.profitRatio,
+          isLoss: usage.isLoss,
+        },
       },
       mode: llmResult.provider === 'deepseek' ? 'live' : 'mock',
     };

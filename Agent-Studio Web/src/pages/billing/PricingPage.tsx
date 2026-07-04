@@ -226,16 +226,26 @@ export function PricingPage() {
   return <div>
     <PageHeader
       title="Pricing"
-      description="充值套餐与核心计费规则都支持 CRUD；LLM/TTS provider mode 暂作为展示字段，不强制做 CRUD。"
+      description="计费规则与充值套餐管理。阶梯式计费：文字 ≤8000 Token = 1 Token，每超 8000 +1；语音 ≤1500 字符 = 3 Tokens，每超 1500 +1。所有参数可在下方实时修改。"
       actions={<Button type="primary" icon={<PlusOutlined />} onClick={() => openRuleForm()}>新建计费规则</Button>}
     />
     <Row gutter={[16, 16]}>
       <Col xs={24}>
         <Card className="ios-card" loading={pricing.isLoading}>
-          <Space direction="vertical" size={6}>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
             <Typography.Text strong>当前生效规则快照</Typography.Text>
             <Typography.Text type="secondary">
-              兑换比例：{pricing.isLoading ? '加载中' : `${fmtTokens(agentTokensPerRmb)} / RMB`} ｜ 计费倍率：{pricingSnapshot.billingMultiplier ?? '加载中'} ｜ 文字最低余额：{pricingSnapshot.minimumTextBalance !== undefined ? fmtTokens(pricingSnapshot.minimumTextBalance) : '加载中'} ｜ 语音最低余额：{pricingSnapshot.minimumVoiceBalance !== undefined ? fmtTokens(pricingSnapshot.minimumVoiceBalance) : '加载中'}
+              兑换：{fmtTokens(agentTokensPerRmb)} / RMB
+              {" ｜ "}文字：基础 {pricingSnapshot.textChat?.baseTokens ?? '…'} Token（≤{fmtTokens(pricingSnapshot.textChat?.tierTokens ?? 0)} Token / 梯）
+              {" ｜ "}语音：基础 {pricingSnapshot.voiceChat?.baseTokens ?? '…'} Tokens（≤{fmtTokens(pricingSnapshot.voiceChat?.tierChars ?? 0)} 字符 / 梯）
+              {" ｜ "}最低利润率：{pricingSnapshot.minProfitRatio ?? '…'}x
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              文字最低余额：{pricingSnapshot.minimumTextBalance !== undefined ? fmtTokens(pricingSnapshot.minimumTextBalance) : '…'}
+              {" ｜ "}语音最低余额：{pricingSnapshot.minimumVoiceBalance !== undefined ? fmtTokens(pricingSnapshot.minimumVoiceBalance) : '…'}
+              {" ｜ "}计费倍率：{pricingSnapshot.billingMultiplier ?? '…'}x
+              {" ｜ "}语音最大字符数：{pricingSnapshot.voiceReplyMaxChars ?? '…'}
+              <Tag color="default" style={{ marginLeft: 6 }}>暂未启用</Tag>
             </Typography.Text>
           </Space>
         </Card>

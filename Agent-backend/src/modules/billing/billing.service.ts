@@ -12,42 +12,53 @@ export class BillingService {
       minimumTextBalance: 100,
       minimumVoiceBalance: 1000,
       voiceReplyMaxChars: 200,
+      // Tiered pricing
+      textChatBaseTokens: 1,
+      textChatTierTokens: 8000,
+      textChatExtraCharge: 1,
+      voiceChatBaseTokens: 3,
+      voiceChatTierChars: 1500,
+      voiceChatExtraCharge: 1,
+      minProfitRatio: 1.5,
+      // Real-cost reference (for profit tracking)
       'deepseek.cacheHitInputRmbPerMillion': 0.02,
       'deepseek.cacheMissInputRmbPerMillion': 1,
       'deepseek.outputRmbPerMillion': 2,
       'elevenlabs.ttsRmbPer100kChars': 35,
     });
 
-    const agentTokensPerRmb = rules.agentTokensPerRmb;
-    const billingMultiplier = rules.billingMultiplier;
-    const textMin = rules.minimumTextBalance;
-    const voiceMin = rules.minimumVoiceBalance;
-    const voiceReplyMaxChars = rules.voiceReplyMaxChars;
-    const cacheHitInputRmbPerMillion = rules['deepseek.cacheHitInputRmbPerMillion'];
-    const cacheMissInputRmbPerMillion = rules['deepseek.cacheMissInputRmbPerMillion'];
-    const outputRmbPerMillion = rules['deepseek.outputRmbPerMillion'];
-    const ttsRmbPer100kCharacters = rules['elevenlabs.ttsRmbPer100kChars'];
-
     return {
       currency: 'AGENT_TOKENS',
-      agentTokensPerRmb,
-      billingMultiplier,
-      minimumTextBalance: textMin,
-      minimumVoiceBalance: voiceMin,
-      minimumBalance: { text: textMin, voice: voiceMin },
-      voiceReplyMaxChars,
+      agentTokensPerRmb: rules.agentTokensPerRmb,
+      billingMultiplier: rules.billingMultiplier,
+      minimumTextBalance: rules.minimumTextBalance,
+      minimumVoiceBalance: rules.minimumVoiceBalance,
+      minimumBalance: { text: rules.minimumTextBalance, voice: rules.minimumVoiceBalance },
+      voiceReplyMaxChars: rules.voiceReplyMaxChars,
+      // Tiered pricing (user-facing)
+      textChat: {
+        baseTokens: rules.textChatBaseTokens,
+        tierTokens: rules.textChatTierTokens,
+        extraCharge: rules.textChatExtraCharge,
+      },
+      voiceChat: {
+        baseTokens: rules.voiceChatBaseTokens,
+        tierChars: rules.voiceChatTierChars,
+        extraCharge: rules.voiceChatExtraCharge,
+      },
+      minProfitRatio: rules.minProfitRatio,
+      // Real-cost reference rates
       llm: {
         provider: 'deepseek',
-        mode: process.env.LLM_PROVIDER ?? 'mock',
-        inputCacheHitRmbPerMillion: cacheHitInputRmbPerMillion,
-        inputCacheMissRmbPerMillion: cacheMissInputRmbPerMillion,
-        outputRmbPerMillion,
+        mode: process.env.LLM_PROVIDER ?? 'deepseek',
+        inputCacheHitRmbPerMillion: rules['deepseek.cacheHitInputRmbPerMillion'],
+        inputCacheMissRmbPerMillion: rules['deepseek.cacheMissInputRmbPerMillion'],
+        outputRmbPerMillion: rules['deepseek.outputRmbPerMillion'],
       },
       tts: {
         provider: 'elevenlabs',
         mode: process.env.TTS_PROVIDER ?? 'mock',
-        rmbPer100kCharacters: ttsRmbPer100kCharacters,
-        chargedAgentTokensPerCharacter: (ttsRmbPer100kCharacters * agentTokensPerRmb * billingMultiplier) / 100000,
+        rmbPer100kCharacters: rules['elevenlabs.ttsRmbPer100kChars'],
       },
     };
   }
