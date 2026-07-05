@@ -16,9 +16,11 @@ import { MockLLMAdapter } from './mock-llm.adapter';
       provide: LLM_PORT,
       inject: [AppConfigService, MockLLMAdapter, GeminiLLMAdapter, DeepSeekLLMAdapter],
       useFactory: (config: AppConfigService, mock: MockLLMAdapter, gemini: GeminiLLMAdapter, deepseek: DeepSeekLLMAdapter) => {
-        if (config.value.llm.provider === 'gemini') return gemini;
-        if (config.value.llm.provider === 'deepseek') return deepseek;
-        return mock;
+        // DeepSeekLLMAdapter is now a unified adapter that auto-detects
+        // Gemini vs OpenAI-compatible API by model name.
+        // Only fall back to MockAdapter when LLM_PROVIDER=mock.
+        if (config.value.llm.provider === 'mock') return mock;
+        return deepseek;
       },
     },
   ],
