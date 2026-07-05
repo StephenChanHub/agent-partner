@@ -13,6 +13,7 @@ import type {
   UsageRecord,
   VoiceProfile,
   MediaFile,
+  TtsSettings,
 } from '../types/api';
 
 export const studioApi = {
@@ -61,6 +62,9 @@ export const studioApi = {
   disableVoiceProfile: async (id: string) => postData<VoiceProfile>(`/studio/voice-profiles/${id}/disable`),
   deleteVoiceProfile: async (id: string) => deleteData<{ deleted: boolean; id: string }>(`/studio/voice-profiles/${id}`),
 
+  ttsSettings: async () => getData<TtsSettings>('/studio/tts/settings'),
+  updateTtsSettings: async (payload: { apiKey: string }) => patchData<TtsSettings>('/studio/tts/settings', payload),
+  deleteTtsSettings: async () => deleteData<TtsSettings>('/studio/tts/settings'),
 
   uploadMedia: async (file: File, kind: 'agent-image' | 'agent-video' | 'voice-preview' | 'agent-avatar') => {
     const formData = new FormData();

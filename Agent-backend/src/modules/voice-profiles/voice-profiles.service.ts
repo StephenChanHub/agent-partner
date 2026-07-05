@@ -1,17 +1,28 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
-import { mockSilentPreviewAudio, mockVoiceProfiles } from '../../mock/mock-data';
+import { ElevenLabsClient } from '../../infrastructure/tts/elevenlabs.client';
+import { TtsSettingsService } from '../../infrastructure/tts/tts-settings.service';
+import { mockVoiceProfiles } from '../../mock/mock-data';
+import { MediaService } from '../media/media.service';
 import { CreateVoiceProfileDto } from './dto/create-voice-profile.dto';
 import { UpdateVoiceProfileDto } from './dto/update-voice-profile.dto';
 import { TestVoiceProfileDto } from './dto/test-voice-profile.dto';
 
 const DEFAULT_VOICE_PROFILE_ID = '00000000-0000-4000-8000-000000000101';
+const DEFAULT_ELEVENLABS_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
+const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v3';
+const DEFAULT_ELEVENLABS_OUTPUT_FORMAT = 'mp3_44100_128';
 
 type ResourceStatus = 'ACTIVE' | 'PUBLISHED' | 'DISABLED' | 'ARCHIVED';
 
 @Injectable()
 export class VoiceProfilesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ttsSettings: TtsSettingsService,
+    private readonly elevenLabs: ElevenLabsClient,
+    private readonly media: MediaService,
+  ) {}
 
   async list(query?: { status?: string }) {
     if (this.prisma.isMockMode) return this.listMock(query);
@@ -28,17 +39,17 @@ export class VoiceProfilesService {
     if (this.prisma.isMockMode) return this.createMock(dto);
     const previewAudioUrl = dto.previewAudioUrl ?? dto.previewUrl ?? '';
     const data = {
-      provider: dto.provider,
+      provider: 'ELEVENLABS' as const,
       displayName: dto.displayName,
       voiceId: dto.voiceId,
-      modelId: dto.modelId ?? (dto.provider === 'MOCK' ? 'mock-tts' : 'eleven_v3'),
-      outputFormat: dto.outputFormat ?? 'mp3_44100_128',
-      language: dto.language ?? 'zh-CN',
+      modelId: dto.modelId,
+      outputFormat: dto.outputFormat,
+      language: null,
       description: dto.description ?? '',
       previewAudioUrl,
-      defaultSpeed: dto.defaultSpeed ?? 1,
-      defaultStability: dto.defaultStability ?? 0.5,
-      defaultSimilarityBoost: dto.defaultSimilarityBoost ?? 0.75,
+      defaultSpeed: dto.defaultSpeed,
+      defaultStability: dto.defaultStability,
+      defaultSimilarityBoost: dto.defaultSimilarityBoost,
       status: this.normalizeStatus((dto as any).status, 'PUBLISHED'),
       isDefault: Boolean(dto.isDefault),
     };
@@ -69,7 +80,6 @@ export class VoiceProfilesService {
       ...(dto.voiceId ? { voiceId: dto.voiceId } : {}),
       ...(dto.modelId !== undefined ? { modelId: dto.modelId } : {}),
       ...(dto.outputFormat !== undefined ? { outputFormat: dto.outputFormat } : {}),
-      ...(dto.language !== undefined ? { language: dto.language } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
       ...(previewAudioUrl !== undefined ? { previewAudioUrl } : {}),
       ...(dto.defaultSpeed !== undefined ? { defaultSpeed: dto.defaultSpeed } : {}),
@@ -90,16 +100,46 @@ export class VoiceProfilesService {
 
   async test(id: string, dto: TestVoiceProfileDto) {
     const item = await this.get(id);
-    const audioUrl = item.previewAudioUrl ?? item.previewUrl ?? mockSilentPreviewAudio;
+    const text = dto.text?.trim() || 'Hello, I am Jarvis.';
+    const startedAt = Date.now();
+    const apiKey = this.ttsSettings.resolveApiKey();
+    const result = await this.elevenLabs.synthesize({
+      apiKey,
+      voiceId: item.voiceId,
+      text,
+      modelId: item.modelId,
+      outputFormat: item.outputFormat,
+      speed: item.defaultSpeed,
+      stability: item.defaultStability,
+      similarityBoost: item.defaultSimilarityBoost,
+    });
+    const saved = this.media.saveBuffer('voice-preview', result.audioBuffer, '.mp3');
+    const latencyMs = Date.now() - startedAt;
+
+    if (this.prisma.isMockMode) {
+      const mockItem = mockVoiceProfiles.find((profile) => profile.id === id) as any;
+      if (mockItem) {
+        mockItem.previewAudioUrl = saved.url;
+        mockItem.previewUrl = saved.url;
+        mockItem.updatedAt = new Date().toISOString();
+      }
+    } else {
+      await this.prisma.db.voiceProfile.update({
+        where: { id },
+        data: { previewAudioUrl: saved.url },
+      });
+    }
+
     return {
       success: true,
       id,
       provider: item.provider,
       voiceId: item.voiceId,
-      text: dto.text ?? '你好，我是 Jarvis。',
-      audioUrl,
-      previewAudioUrl: audioUrl,
-      mimeType: this.guessMimeType(audioUrl),
+      text,
+      audioUrl: saved.url,
+      previewAudioUrl: saved.url,
+      mimeType: saved.mimeType,
+      latencyMs,
       ttlSeconds: 600,
     };
   }
@@ -149,14 +189,14 @@ export class VoiceProfilesService {
     await this.prisma.db.voiceProfile.create({
       data: {
         id: DEFAULT_VOICE_PROFILE_ID,
-        provider: 'MOCK',
+        provider: 'ELEVENLABS',
         displayName: 'Jarvis Default Voice',
-        voiceId: 'mock_voice_jarvis',
-        modelId: 'mock-tts',
-        outputFormat: 'mp3_44100_128',
-        language: 'zh-CN',
-        description: 'Default sample voice profile. Replace the preview audio from Studio when real media is ready.',
-        previewAudioUrl: mockSilentPreviewAudio,
+        voiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+        modelId: DEFAULT_ELEVENLABS_MODEL_ID,
+        outputFormat: DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
+        language: null,
+        description: 'Default ElevenLabs voice profile. Configure the platform API key and generate a preview sample.',
+        previewAudioUrl: '',
         defaultSpeed: 1,
         defaultStability: 0.5,
         defaultSimilarityBoost: 0.75,
@@ -174,15 +214,14 @@ export class VoiceProfilesService {
       displayName: item.displayName,
       name: item.displayName,
       voiceId: item.voiceId,
-      modelId: item.modelId ?? '',
-      outputFormat: item.outputFormat ?? 'mp3_44100_128',
-      language: item.language ?? 'zh-CN',
+      modelId: item.modelId ?? DEFAULT_ELEVENLABS_MODEL_ID,
+      outputFormat: item.outputFormat ?? DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
       description: item.description ?? '',
       previewAudioUrl,
       previewUrl: previewAudioUrl,
       status: item.status,
       isDefault: Boolean(item.isDefault),
-      apiKeyConfigured: item.provider === 'MOCK' || item.provider === 'CUSTOM' || item.provider === 'LOCAL',
+      apiKeyConfigured: Boolean(this.ttsSettings.resolveApiKey()),
       defaultSpeed: this.toNumber(item.defaultSpeed, 1),
       defaultStability: this.toNumber(item.defaultStability, 0.5),
       defaultSimilarityBoost: this.toNumber(item.defaultSimilarityBoost, 0.75),
@@ -225,25 +264,24 @@ export class VoiceProfilesService {
 
   private createMock(dto: CreateVoiceProfileDto & { status?: ResourceStatus }) {
     const now = new Date().toISOString();
-    const previewAudioUrl = dto.previewAudioUrl ?? dto.previewUrl ?? mockSilentPreviewAudio;
+    const previewAudioUrl = dto.previewAudioUrl ?? dto.previewUrl ?? '';
     const item = {
       id: `voice_profile_${Date.now()}`,
-      provider: dto.provider,
+      provider: 'ELEVENLABS' as const,
       displayName: dto.displayName,
       name: dto.displayName,
       voiceId: dto.voiceId,
-      modelId: dto.modelId ?? (dto.provider === 'MOCK' ? 'mock-tts' : 'eleven_v3'),
-      outputFormat: dto.outputFormat ?? 'mp3_44100_128',
-      language: dto.language ?? 'zh-CN',
+      modelId: dto.modelId,
+      outputFormat: dto.outputFormat,
       description: dto.description ?? '',
       previewAudioUrl,
       previewUrl: previewAudioUrl,
       status: this.normalizeStatus((dto as any).status, 'PUBLISHED'),
       isDefault: Boolean(dto.isDefault),
-      apiKeyConfigured: dto.provider === 'MOCK' || dto.provider === 'CUSTOM' || dto.provider === 'LOCAL',
-      defaultSpeed: dto.defaultSpeed ?? 1,
-      defaultStability: dto.defaultStability ?? 0.5,
-      defaultSimilarityBoost: dto.defaultSimilarityBoost ?? 0.75,
+      apiKeyConfigured: Boolean(this.ttsSettings.resolveApiKey()),
+      defaultSpeed: dto.defaultSpeed,
+      defaultStability: dto.defaultStability,
+      defaultSimilarityBoost: dto.defaultSimilarityBoost,
       createdAt: now,
       updatedAt: now,
     };

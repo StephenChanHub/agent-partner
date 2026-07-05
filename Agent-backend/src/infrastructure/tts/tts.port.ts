@@ -1,9 +1,14 @@
 export interface TTSInput {
   text: string;
   voiceId?: string;
-  language?: string;
+  modelId?: string;
+  outputFormat?: string;
+  speed?: number;
+  stability?: number;
+  similarityBoost?: number;
   format?: 'mp3' | 'wav';
   traceId?: string;
+  apiKey?: string;
 }
 
 export interface TTSResult {

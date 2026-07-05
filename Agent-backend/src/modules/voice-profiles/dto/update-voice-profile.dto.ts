@@ -1,10 +1,9 @@
 export class UpdateVoiceProfileDto {
-  provider?: 'MOCK' | 'ELEVENLABS' | 'OPENAI' | 'AZURE' | 'LOCAL' | 'CUSTOM';
+  provider?: 'ELEVENLABS';
   displayName?: string;
   voiceId?: string;
   modelId?: string;
   outputFormat?: string;
-  language?: string;
   description?: string;
   previewAudioUrl?: string;
   /** Legacy alias during migration from v1.7.1. */

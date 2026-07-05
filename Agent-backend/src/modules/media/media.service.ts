@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { basename, extname, join } from 'path';
 
 export type MediaKind = 'agent-image' | 'agent-video' | 'voice-preview' | 'agent-avatar';
@@ -81,6 +81,16 @@ export class MediaService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  saveBuffer(kind: string, buffer: Buffer, extension = '.mp3') {
+    this.ensureRoot();
+    const safeKind = this.normalizeKind(kind);
+    const safeExt = extension.startsWith('.') ? extension : `.${extension}`;
+    const filename = `${safeKind}-${Date.now()}${safeExt}`;
+    const fullPath = join(this.rootDir, safeKind, filename);
+    writeFileSync(fullPath, buffer);
+    return this.toFileInfo(safeKind, filename);
   }
 
   private guessMimeType(filename: string) {

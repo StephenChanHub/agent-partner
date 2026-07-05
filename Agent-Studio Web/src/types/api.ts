@@ -92,6 +92,12 @@ export type ModelProfile = {
   updatedAt: string;
 };
 
+export type TtsSettings = {
+  provider: 'elevenlabs';
+  apiKeyConfigured: boolean;
+  apiKeyMasked?: string;
+};
+
 export type VoiceProfile = {
   id: string;
   provider: string;
@@ -100,7 +106,6 @@ export type VoiceProfile = {
   voiceId: string;
   modelId: string;
   outputFormat: string;
-  language: string;
   description?: string;
   /** Formal field: Voice Profile preview sample audio. */
   previewAudioUrl?: string;

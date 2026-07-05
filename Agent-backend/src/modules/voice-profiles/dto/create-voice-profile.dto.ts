@@ -1,16 +1,15 @@
 export class CreateVoiceProfileDto {
-  provider!: 'MOCK' | 'ELEVENLABS' | 'OPENAI' | 'AZURE' | 'LOCAL' | 'CUSTOM';
+  provider!: 'ELEVENLABS';
   displayName!: string;
   voiceId!: string;
-  modelId?: string;
-  outputFormat?: string;
-  language?: string;
+  modelId!: string;
+  outputFormat!: string;
   description?: string;
   previewAudioUrl?: string;
   /** Legacy alias during migration from v1.7.1. */
   previewUrl?: string;
-  defaultSpeed?: number;
-  defaultStability?: number;
-  defaultSimilarityBoost?: number;
+  defaultSpeed!: number;
+  defaultStability!: number;
+  defaultSimilarityBoost!: number;
   isDefault?: boolean;
 }

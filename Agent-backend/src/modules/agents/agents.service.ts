@@ -231,13 +231,13 @@ export class AgentsService {
     return this.prisma.db.voiceProfile.create({
       data: {
         id: DEFAULT_VOICE_PROFILE_ID,
-        provider: 'MOCK',
+        provider: 'ELEVENLABS',
         displayName: 'Jarvis Default Voice',
-        voiceId: 'mock_voice_jarvis',
-        modelId: 'mock-tts',
+        voiceId: 'JBFqnCBsd6RMkjVDRZzb',
+        modelId: 'eleven_v3',
         outputFormat: 'mp3_44100_128',
-        language: 'zh-CN',
-        description: 'Default sample voice profile. Replace the preview audio from Studio when real media is ready.',
+        language: null,
+        description: 'Default ElevenLabs voice profile. Configure the platform API key and generate a preview sample.',
         previewAudioUrl: '',
         defaultSpeed: 1,
         defaultStability: 0.5,
