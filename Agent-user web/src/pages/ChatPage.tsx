@@ -37,6 +37,7 @@ type ChatApiResponse = {
   sessionId: string;
   userMessage: { id: string; role: string; content: string };
   assistantMessage: { id: string; role: string; content: string };
+  llmError?: { code: 'NETWORK_ERROR' | 'QUOTA_EXCEEDED' | 'NO_RESPONSE' };
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -74,6 +75,96 @@ function getStatusLabel(status?: ChatMessage['status']) {
   if (status === 'thinking') return 'thinking';
   if (status === 'ready') return 'ready';
   return '';
+}
+
+type ChatFailureKind = 'network' | 'quota' | 'no_response' | 'insufficient_balance' | 'auth';
+
+const CHAT_FAILURE_MESSAGES: Record<Exclude<ChatFailureKind, 'auth'>, string> = {
+  network: 'Network error. Please check your connection and try again.',
+  quota: 'Model quota exceeded. Please try again later.',
+  no_response: 'The model did not respond. Please try again.',
+  insufficient_balance: 'Insufficient balance. Please top up to continue chatting.',
+};
+
+function mapLlmErrorCode(code: string): Exclude<ChatFailureKind, 'auth'> {
+  switch (code) {
+    case 'NETWORK_ERROR':
+      return 'network';
+    case 'QUOTA_EXCEEDED':
+      return 'quota';
+    case 'NO_RESPONSE':
+      return 'no_response';
+    default:
+      return 'no_response';
+  }
+}
+
+function isLegacyLlmFailureContent(content: string): boolean {
+  const normalized = content.trim().toLowerCase();
+  return normalized === 'llm connection failed.' || normalized === 'llm connection failed';
+}
+
+function classifyRequestError(error: unknown): ChatFailureKind {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+
+  if (
+    error instanceof TypeError ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed') ||
+    message.includes('fetch failed')
+  ) {
+    return 'network';
+  }
+
+  if (
+    message.includes('429') ||
+    message.includes('quota') ||
+    message.includes('rate limit') ||
+    message.includes('rate_limit') ||
+    message.includes('insufficient_quota') ||
+    message.includes('exceeded')
+  ) {
+    return 'quota';
+  }
+
+  if (
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('no response') ||
+    message.includes('empty response')
+  ) {
+    return 'no_response';
+  }
+
+  if (
+    message.includes('余额不足') ||
+    message.includes('insufficient') ||
+    message.includes('充值') ||
+    message.includes('top up')
+  ) {
+    return 'insufficient_balance';
+  }
+
+  if (
+    message.includes('登录') ||
+    message.includes('login') ||
+    message.includes('unauthorized') ||
+    message.includes('未授权')
+  ) {
+    return 'auth';
+  }
+
+  if (/\b50[0-9]\b/.test(message) || message.includes('503') || message.includes('502')) {
+    return 'network';
+  }
+
+  return 'no_response';
+}
+
+function resolveChatFailureMessage(kind: Exclude<ChatFailureKind, 'auth'>): string {
+  return CHAT_FAILURE_MESSAGES[kind];
 }
 
 function buildAgentIntroMessage(agent: HomeAgent): ChatMessage {
@@ -299,6 +390,24 @@ export function ChatPage({ agent }: ChatPageProps) {
         client: 'web',
       });
 
+      const llmFailureKind = result.llmError?.code
+        ? mapLlmErrorCode(result.llmError.code)
+        : isLegacyLlmFailureContent(result.assistantMessage.content)
+          ? 'no_response'
+          : null;
+
+      if (llmFailureKind) {
+        setMessages((current) =>
+          current.map((msg) =>
+            msg.id === thinkingMessage.id
+              ? { ...msg, text: resolveChatFailureMessage(llmFailureKind), status: 'ready' }
+              : msg,
+          ),
+        );
+        if (result.sessionId) setSessionId(result.sessionId);
+        return;
+      }
+
       // Replace the thinking message with the real response
       const assistantMessage: ChatMessage = {
         id: result.assistantMessage.id,
@@ -318,28 +427,26 @@ export function ChatPage({ agent }: ChatPageProps) {
 
       // Update session token balance
       updateUserSession({ tokens: result.usage.balanceAfter });
-    } catch (error: any) {
-      const message = error?.message ?? String(error);
+    } catch (error: unknown) {
+      const failureKind = classifyRequestError(error);
 
-      if (message.includes('余额不足') || message.includes('insufficient') || message.includes('充值')) {
+      if (failureKind === 'insufficient_balance') {
         setInsufficientBalance(true);
         setMessages((current) =>
           current.map((msg) =>
             msg.id === thinkingMessage.id
-              ? { ...msg, text: '余额不足，请先充值后再继续对话。', status: 'ready' }
+              ? { ...msg, text: resolveChatFailureMessage('insufficient_balance'), status: 'ready' }
               : msg,
           ),
         );
-      } else if (message.includes('登录') || message.includes('login') || message.includes('unauthorized') || message.includes('未授权')) {
-        // Auth required — remove thinking message and trigger login
+      } else if (failureKind === 'auth') {
         setMessages((current) => current.filter((msg) => msg.id !== thinkingMessage.id));
         requestUserAuth();
       } else {
-        // Generic error — show error in thinking message
         setMessages((current) =>
           current.map((msg) =>
             msg.id === thinkingMessage.id
-              ? { ...msg, text: `发送失败：${message}`, status: 'ready' }
+              ? { ...msg, text: resolveChatFailureMessage(failureKind), status: 'ready' }
               : msg,
           ),
         );
@@ -428,8 +535,8 @@ export function ChatPage({ agent }: ChatPageProps) {
 
       {insufficientBalance ? (
         <div className="chat-balance-warning" role="alert">
-          <span>⚠️ 余额不足，请先充值后再继续对话。</span>
-          <button type="button" onClick={goToWallet}>去充值</button>
+          <span>Insufficient balance. Please top up to continue chatting.</span>
+          <button type="button" onClick={goToWallet}>Top up</button>
         </div>
       ) : null}
 

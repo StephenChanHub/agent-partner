@@ -11,10 +11,13 @@ export interface LLMGenerateInput {
   model?: string;
 }
 
+export type LLMErrorCode = 'NETWORK_ERROR' | 'QUOTA_EXCEEDED' | 'NO_RESPONSE';
+
 export interface LLMGenerateResult {
   content: string;
   provider: string;
   model: string;
+  errorCode?: LLMErrorCode;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

@@ -331,6 +331,7 @@ export class RuntimeService {
         content: llmResult.content,
         responseMode: 'text',
       },
+      ...(llmResult.errorCode ? { llmError: { code: llmResult.errorCode } } : {}),
       usage: {
         inputTokens,
         outputTokens,

@@ -1,9 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
 import { LLMGenerateInput, LLMGenerateResult, LLMPort, LLMStreamChunk } from './llm.port';
+import { classifyLlmHttpError } from './llm-error.util';
 
 /** Regex to detect Gemini models by name. */
 const GEMINI_MODEL_RE = /^gemini-/;
+
+function llmFailure(
+  errorCode: LLMGenerateResult['errorCode'],
+  provider: string,
+  model: string,
+): LLMGenerateResult {
+  return {
+    content: '',
+    provider,
+    model,
+    errorCode,
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  };
+}
 
 @Injectable()
 export class DeepSeekLLMAdapter implements LLMPort {
@@ -25,7 +40,7 @@ export class DeepSeekLLMAdapter implements LLMPort {
 
     if (!apiKey) {
       console.error('[DeepSeekLLMAdapter] Gemini API key not configured');
-      return { content: 'LLM connection failed.', provider: 'gemini', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+      return llmFailure('NO_RESPONSE', 'gemini', model);
     }
 
     try {
@@ -62,13 +77,18 @@ export class DeepSeekLLMAdapter implements LLMPort {
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'unknown');
         console.error(`[DeepSeekLLMAdapter] Gemini API error ${response.status}: ${errorText}`);
-        return { content: 'LLM connection failed.', provider: 'gemini', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+        return llmFailure(classifyLlmHttpError(response.status, errorText), 'gemini', model);
       }
 
       const data = await response.json() as any;
       const candidate = data?.candidates?.[0];
       const content = candidate?.content?.parts?.map((p: any) => p.text).join('') ?? '';
       const usage = data?.usageMetadata;
+
+      if (!content) {
+        console.error('[DeepSeekLLMAdapter] Empty response from Gemini API');
+        return llmFailure('NO_RESPONSE', 'gemini', model);
+      }
 
       return {
         content,
@@ -82,7 +102,7 @@ export class DeepSeekLLMAdapter implements LLMPort {
       };
     } catch (error: any) {
       console.error('[DeepSeekLLMAdapter] Gemini connection failed:', error?.message ?? error);
-      return { content: 'LLM connection failed.', provider: 'gemini', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+      return llmFailure('NETWORK_ERROR', 'gemini', model);
     }
   }
 
@@ -92,7 +112,7 @@ export class DeepSeekLLMAdapter implements LLMPort {
     const baseUrl = (input.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '');
 
     if (!apiKey) {
-      return { content: 'LLM connection failed.', provider: 'deepseek', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+      return llmFailure('NO_RESPONSE', 'deepseek', model);
     }
 
     try {
@@ -128,7 +148,7 @@ export class DeepSeekLLMAdapter implements LLMPort {
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'unknown');
         console.error(`[DeepSeekLLMAdapter] API error ${response.status}: ${errorText}`);
-        return { content: 'LLM connection failed.', provider: 'deepseek', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+        return llmFailure(classifyLlmHttpError(response.status, errorText), 'deepseek', model);
       }
 
       const data = await response.json() as any;
@@ -137,7 +157,7 @@ export class DeepSeekLLMAdapter implements LLMPort {
 
       if (!content) {
         console.error('[DeepSeekLLMAdapter] Empty response from API');
-        return { content: 'LLM connection failed.', provider: 'deepseek', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+        return llmFailure('NO_RESPONSE', 'deepseek', model);
       }
 
       const usage = data?.usage;
@@ -154,7 +174,7 @@ export class DeepSeekLLMAdapter implements LLMPort {
       };
     } catch (error: any) {
       console.error('[DeepSeekLLMAdapter] Connection failed:', error?.message ?? error);
-      return { content: 'LLM connection failed.', provider: 'deepseek', model, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
+      return llmFailure('NETWORK_ERROR', 'deepseek', model);
     }
   }
 
