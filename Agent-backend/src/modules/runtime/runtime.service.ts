@@ -79,8 +79,12 @@ export class RuntimeService {
     // 3. Resolve default model profile
     const modelProfile = await this.modelProfiles.getDefault();
     const apiKey = modelProfile?.apiKey ?? '';
-    const baseUrl = modelProfile?.baseUrl || 'https://api.deepseek.com';
     const modelName = modelProfile?.modelName || 'deepseek-chat';
+    const baseUrl =
+      modelProfile?.baseUrl?.trim() ||
+      (/^gemini-/i.test(modelName)
+        ? 'https://generativelanguage.googleapis.com'
+        : 'https://api.deepseek.com');
     const temperature = modelProfile?.defaultTemperature ?? 0.7;
     const maxTokens = modelProfile?.defaultMaxTokens ?? 512;
 
