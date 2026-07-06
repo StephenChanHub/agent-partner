@@ -33,6 +33,8 @@ type VoiceAudioCacheRecord = {
 const AUDIO_CACHE_DB = 'jarvis_audio_cache';
 const AUDIO_CACHE_STORE = 'audio_messages';
 const DEFAULT_STT_LANG = 'zh-CN';
+const VOICE_SILENCE_AUTO_SEND_MS = 3000;
+const VOICE_ACTIVITY_THRESHOLD = 0.035;
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -58,6 +60,7 @@ type ChatMessage = {
   text: string;
   status?: 'thinking' | 'ready';
   audioUrl?: string;
+  audioMimeType?: string;
 };
 
 type ChatApiResponse = {
@@ -239,6 +242,17 @@ function buildAgentIntroMessage(agent: HomeAgent): ChatMessage {
   };
 }
 
+function getSupportedAudioMimeType(): string {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/mpeg',
+  ];
+  return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || '';
+}
+
 function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
   if (typeof window === 'undefined') return null;
   return (
@@ -377,7 +391,9 @@ export function ChatPage({ agent }: ChatPageProps) {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [sttSupported, setSttSupported] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const messagesRef = useRef<HTMLElement | null>(null);
+  const messageStateRef = useRef<ChatMessage[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const copyTimerRef = useRef<number | null>(null);
   const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -385,7 +401,13 @@ export function ChatPage({ agent }: ChatPageProps) {
   const enterLongPressFiredRef = useRef(false);
   const enterLongPressTimerRef = useRef<number | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const voiceDraftModeRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const voiceAudioChunksRef = useRef<Blob[]>([]);
+  const silenceTimerRef = useRef<number | null>(null);
+  const voiceAnimationFrameRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const voiceTranscriptRef = useRef('');
 
   const adjustDraftHeight = () => {
     const element = draftInputRef.current;
@@ -478,15 +500,14 @@ export function ChatPage({ agent }: ChatPageProps) {
             text: m.content,
             status: 'ready' as const,
           };
-          if (nextMessage.role === 'agent') {
-            try {
-              const cached = await loadAudioFromCache(nextMessage.id);
-              if (cached) {
-                nextMessage.audioUrl = getUserAudioUrl(cached.audioBlob);
-              }
-            } catch (error) {
-              console.error('Load cached assistant audio failed', error);
+          try {
+            const cached = await loadAudioFromCache(nextMessage.id);
+            if (cached) {
+              nextMessage.audioUrl = getUserAudioUrl(cached.audioBlob);
+              nextMessage.audioMimeType = cached.mimeType;
             }
+          } catch (error) {
+            console.error('Load cached message audio failed', error);
           }
           loaded.push(nextMessage);
         }
@@ -532,13 +553,17 @@ export function ChatPage({ agent }: ChatPageProps) {
       }
       clearEnterPressState();
       speechRecognitionRef.current?.abort();
+      mediaRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
+      if (voiceAnimationFrameRef.current !== null) window.cancelAnimationFrame(voiceAnimationFrameRef.current);
+      void audioContextRef.current?.close();
+      messageStateRef.current.forEach((message) => revokeAudioUrl(message.audioUrl));
     };
   }, []);
 
   useEffect(() => {
-    return () => {
-      messages.forEach((message) => revokeAudioUrl(message.audioUrl));
-    };
+    messageStateRef.current = messages;
   }, [messages]);
 
   const handleCopyMessage = async (message: ChatMessage) => {
@@ -587,19 +612,20 @@ export function ChatPage({ agent }: ChatPageProps) {
     return true;
   };
 
-  const sendMessage = async () => {
-    const text = draft.trim();
+  const sendMessage = async (voicePayload?: { text: string; audioBlob: Blob; mimeType: string }) => {
+    const text = (voicePayload?.text ?? draft).trim();
     if (!text) return;
     if (requireLogin()) return;
 
-    const useVoiceMode = voiceDraftModeRef.current;
-    voiceDraftModeRef.current = false;
+    const useVoiceMode = Boolean(voicePayload?.audioBlob);
 
     const now = Date.now();
     const userMessage: ChatMessage = {
       id: `msg_user_${now}`,
       role: 'user',
       text,
+      audioUrl: voicePayload ? getUserAudioUrl(voicePayload.audioBlob) : undefined,
+      audioMimeType: voicePayload?.mimeType,
     };
     const thinkingMessage: ChatMessage = {
       id: `msg_agent_thinking_${now}`,
@@ -609,6 +635,14 @@ export function ChatPage({ agent }: ChatPageProps) {
     };
 
     setMessages((current) => [...current, userMessage, thinkingMessage]);
+    if (voicePayload) {
+      void saveAudioToCache({
+        messageId: userMessage.id,
+        audioBlob: voicePayload.audioBlob,
+        mimeType: voicePayload.mimeType || voicePayload.audioBlob.type || 'audio/webm',
+        createdAt: new Date().toISOString(),
+      }).catch((error) => console.error('User audio cache save failed', error));
+    }
     setDraft('');
     setInsufficientBalance(false);
 
@@ -617,7 +651,9 @@ export function ChatPage({ agent }: ChatPageProps) {
         agentSlug: agent.slug,
         sessionId,
         client: 'web',
-        ...(useVoiceMode ? { mockText: text } : { message: text }),
+        ...(useVoiceMode
+          ? { mockText: text, message: text, inputMode: 'voice', hasClientAudio: true }
+          : { message: text }),
       });
 
       const llmFailureKind = result.llmError?.code
@@ -675,9 +711,6 @@ export function ChatPage({ agent }: ChatPageProps) {
 
       if (result.sessionId) setSessionId(result.sessionId);
       updateUserSession({ tokens: result.usage.balanceAfter });
-      if (useVoiceMode) {
-        voiceDraftModeRef.current = false;
-      }
     } catch (error: unknown) {
       const failureKind = classifyRequestError(error);
 
@@ -705,64 +738,167 @@ export function ChatPage({ agent }: ChatPageProps) {
     }
   };
 
+  const clearVoiceSilenceTimer = () => {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const stopVoiceCapture = () => {
+    clearVoiceSilenceTimer();
+    if (voiceAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(voiceAnimationFrameRef.current);
+      voiceAnimationFrameRef.current = null;
+    }
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    speechRecognitionRef.current?.stop();
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const armSilenceAutoSend = () => {
+    clearVoiceSilenceTimer();
+    silenceTimerRef.current = window.setTimeout(() => {
+      stopVoiceCapture();
+    }, VOICE_SILENCE_AUTO_SEND_MS);
+  };
+
+  const monitorVoiceActivity = (stream: MediaStream) => {
+    const AudioContextConstructor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      armSilenceAutoSend();
+      return;
+    }
+
+    const audioContext = new AudioContextConstructor();
+    audioContextRef.current = audioContext;
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 1024;
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+
+    const tick = () => {
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) {
+        const normalized = (sample - 128) / 128;
+        sum += normalized * normalized;
+      }
+      const volume = Math.sqrt(sum / samples.length);
+      if (volume > VOICE_ACTIVITY_THRESHOLD) {
+        armSilenceAutoSend();
+      }
+      voiceAnimationFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    armSilenceAutoSend();
+    tick();
+  };
+
   const toggleRecording = async () => {
     if (isRecording) {
-      speechRecognitionRef.current?.stop();
+      stopVoiceCapture();
       return;
     }
 
     if (requireLogin()) return;
 
-    const SpeechRecognition = getSpeechRecognitionConstructor();
-    if (!SpeechRecognition) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceError('Voice recording is not supported in this browser.');
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    speechRecognitionRef.current = recognition;
-    recognition.lang = DEFAULT_STT_LANG;
-    recognition.continuous = false;
-    recognition.interimResults = true;
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setVoiceError('Speech recognition is not supported in this browser.');
+      return;
+    }
 
-    let finalTranscript = '';
-
-    recognition.onstart = () => {
-      voiceDraftModeRef.current = true;
-      setIsRecording(true);
-    };
-    recognition.onresult = (event: any) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        transcript += event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        }
-      }
-      const nextDraft = (finalTranscript || transcript).trim();
-      setDraft(nextDraft);
-    };
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition failed', event?.error);
-      setIsRecording(false);
-      voiceDraftModeRef.current = false;
-      speechRecognitionRef.current = null;
-    };
-    recognition.onend = () => {
-      setIsRecording(false);
-      speechRecognitionRef.current = null;
-      const transcript = draftInputRef.current?.value?.trim() || finalTranscript.trim() || draft.trim();
-      if (transcript && transcript !== draft.trim()) {
-        setDraft(transcript);
-      }
-    };
+    setVoiceError(null);
+    voiceTranscriptRef.current = '';
+    voiceAudioChunksRef.current = [];
 
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const mimeType = getSupportedAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) voiceAudioChunksRef.current.push(event.data);
+      };
+      recorder.onerror = (event) => {
+        console.error('Audio recording failed', event);
+        setVoiceError('Audio recording failed. Please try again.');
+      };
+      recorder.onstop = () => {
+        const chunks = voiceAudioChunksRef.current;
+        const resolvedMimeType = recorder.mimeType || mimeType || chunks[0]?.type || 'audio/webm';
+        const audioBlob = new Blob(chunks, { type: resolvedMimeType });
+        const transcript = (voiceTranscriptRef.current || draftInputRef.current?.value || draft).trim();
+
+        setIsRecording(false);
+        mediaRecorderRef.current = null;
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        if (audioBlob.size > 0 && transcript) {
+          void sendMessage({ text: transcript, audioBlob, mimeType: resolvedMimeType });
+        } else if (!transcript) {
+          setVoiceError('No speech was detected. Please try again.');
+        }
+      };
+
+      const recognition = new SpeechRecognition();
+      speechRecognitionRef.current = recognition;
+      recognition.lang = DEFAULT_STT_LANG;
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      let finalTranscript = '';
+      recognition.onstart = () => setIsRecording(true);
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        const nextDraft = `${finalTranscript}${interimTranscript}`.trim();
+        voiceTranscriptRef.current = nextDraft;
+        setDraft(nextDraft);
+      };
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition failed', event?.error);
+        if (event?.error !== 'no-speech') {
+          setVoiceError('Speech recognition failed. Please try again.');
+        }
+      };
+      recognition.onend = () => {
+        speechRecognitionRef.current = null;
+        voiceTranscriptRef.current = (voiceTranscriptRef.current || finalTranscript).trim();
+      };
+
+      recorder.start();
       recognition.start();
+      setIsRecording(true);
+      monitorVoiceActivity(stream);
     } catch (error) {
-      console.error('Start speech recognition failed', error);
+      console.error('Start voice recording failed', error);
       setIsRecording(false);
-      voiceDraftModeRef.current = false;
+      clearVoiceSilenceTimer();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
       speechRecognitionRef.current = null;
+      setVoiceError('Microphone permission is required for voice chat.');
     }
   };
 
@@ -869,6 +1005,17 @@ export function ChatPage({ agent }: ChatPageProps) {
       ) : null}
 
       <footer className="chat-composer">
+        {isRecording ? (
+          <div className="voice-listening-indicator" role="status" aria-live="polite" aria-label="Listening">
+            <span className="voice-listening-orb" aria-hidden="true" />
+            <span className="voice-listening-text">Listening… auto-send after 3s silence</span>
+          </div>
+        ) : null}
+        {voiceError ? (
+          <div className="voice-error" role="alert">
+            {voiceError}
+          </div>
+        ) : null}
         <div className="chat-composer-inner">
           <div className="chat-input-shell">
             <textarea
@@ -883,7 +1030,7 @@ export function ChatPage({ agent }: ChatPageProps) {
               onKeyUp={handleDraftKeyUp}
               onBlur={clearEnterPressState}
             />
-            <button className="send-input-button" type="button" aria-label="Send message" onClick={sendMessage}>
+            <button className="send-input-button" type="button" aria-label="Send message" onClick={() => void sendMessage()}>
               <ArrowUpIcon />
             </button>
           </div>
