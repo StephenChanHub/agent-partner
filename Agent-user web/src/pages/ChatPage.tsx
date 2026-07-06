@@ -364,6 +364,22 @@ function SoundWaveIcon() {
   );
 }
 
+function RecordingWaveOrb() {
+  return (
+    <div className="voice-recording-orb" role="status" aria-live="polite" aria-label="Recording">
+      <div className="voice-recording-orb__sphere" aria-hidden="true">
+        <div className="voice-recording-orb__shine" />
+        <svg className="voice-recording-orb__wave" viewBox="0 0 56 20" aria-hidden="true" focusable="false">
+          <path
+            className="voice-recording-orb__wave-path"
+            d="M2 10 C7 4, 11 16, 16 10 C21 4, 25 16, 30 10 C35 4, 39 16, 44 10 C49 4, 53 16, 54 10"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function ArrowUpIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -986,7 +1002,7 @@ export function ChatPage({ agent }: ChatPageProps) {
 
                 {message.audioUrl ? (
                   <button
-                    className={`message-sound-button sound-button${isPlaying ? ' message-sound-button--playing' : ''}`}
+                    className={`message-sound-button sound-button${message.role === 'user' ? ' message-sound-button--user' : ''}${isPlaying ? ' message-sound-button--playing' : ''}`}
                     type="button"
                     aria-label={isPlaying ? 'Pause message audio' : 'Play message audio'}
                     title={isPlaying ? 'Pause' : 'Play'}
@@ -1009,12 +1025,7 @@ export function ChatPage({ agent }: ChatPageProps) {
       ) : null}
 
       <footer className="chat-composer">
-        {isRecording ? (
-          <div className="voice-listening-indicator" role="status" aria-live="polite" aria-label="Listening">
-            <span className="voice-listening-orb" aria-hidden="true" />
-            <span className="voice-listening-text">Listening… auto-send after 3s silence</span>
-          </div>
-        ) : null}
+        {isRecording ? <RecordingWaveOrb /> : null}
         {voiceError ? (
           <div className="voice-error" role="alert">
             {voiceError}
