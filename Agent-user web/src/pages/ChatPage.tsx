@@ -167,6 +167,24 @@ function resolveChatFailureMessage(kind: Exclude<ChatFailureKind, 'auth'>): stri
   return CHAT_FAILURE_MESSAGES[kind];
 }
 
+const ENTER_LONG_PRESS_MS = 400;
+
+function isMobileComposerInput() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
+function insertTextareaNewline(element: HTMLTextAreaElement, onUpdate: (value: string) => void) {
+  const start = element.selectionStart ?? element.value.length;
+  const end = element.selectionEnd ?? element.value.length;
+  const next = `${element.value.slice(0, start)}\n${element.value.slice(end)}`;
+  onUpdate(next);
+  requestAnimationFrame(() => {
+    element.selectionStart = start + 1;
+    element.selectionEnd = start + 1;
+  });
+}
+
 function buildAgentIntroMessage(agent: HomeAgent): ChatMessage {
   const description = agent.description?.trim() || 'I am ready to chat with you.';
   return {
@@ -222,6 +240,16 @@ function PauseIcon() {
   );
 }
 
+function SoundWaveIcon() {
+  return (
+    <svg className="sound-wave-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M8.6 8.4a4.9 4.9 0 0 1 0 7.2" />
+      <path d="M12.1 6.1a8.2 8.2 0 0 1 0 11.8" />
+      <path d="M15.7 3.9a11.4 11.4 0 0 1 0 16.2" />
+    </svg>
+  );
+}
+
 function ArrowUpIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -250,6 +278,73 @@ export function ChatPage({ agent }: ChatPageProps) {
   const messagesRef = useRef<HTMLElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const copyTimerRef = useRef<number | null>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const enterPressStartedAtRef = useRef<number | null>(null);
+  const enterLongPressFiredRef = useRef(false);
+  const enterLongPressTimerRef = useRef<number | null>(null);
+
+  const adjustDraftHeight = () => {
+    const element = draftInputRef.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${element.scrollHeight}px`;
+  };
+
+  const clearEnterPressState = () => {
+    if (enterLongPressTimerRef.current !== null) {
+      window.clearTimeout(enterLongPressTimerRef.current);
+      enterLongPressTimerRef.current = null;
+    }
+    enterPressStartedAtRef.current = null;
+    enterLongPressFiredRef.current = false;
+  };
+
+  const insertDraftNewline = () => {
+    const element = draftInputRef.current;
+    if (!element) return;
+    insertTextareaNewline(element, setDraft);
+    requestAnimationFrame(() => adjustDraftHeight());
+  };
+
+  const handleDraftKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+
+    if (isMobileComposerInput()) {
+      event.preventDefault();
+      if (enterPressStartedAtRef.current !== null) return;
+
+      enterPressStartedAtRef.current = Date.now();
+      enterLongPressFiredRef.current = false;
+      enterLongPressTimerRef.current = window.setTimeout(() => {
+        enterLongPressFiredRef.current = true;
+        insertDraftNewline();
+        enterLongPressTimerRef.current = null;
+      }, ENTER_LONG_PRESS_MS);
+      return;
+    }
+
+    event.preventDefault();
+    sendMessage();
+  };
+
+  const handleDraftKeyUp = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey || !isMobileComposerInput()) return;
+    if (enterPressStartedAtRef.current === null) return;
+
+    event.preventDefault();
+
+    if (enterLongPressTimerRef.current !== null) {
+      window.clearTimeout(enterLongPressTimerRef.current);
+      enterLongPressTimerRef.current = null;
+    }
+
+    const shouldSend = !enterLongPressFiredRef.current;
+    clearEnterPressState();
+
+    if (shouldSend) {
+      sendMessage();
+    }
+  };
 
   const [insufficientBalance, setInsufficientBalance] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -305,12 +400,17 @@ export function ChatPage({ agent }: ChatPageProps) {
   }, [messages]);
 
   useEffect(() => {
+    adjustDraftHeight();
+  }, [draft]);
+
+  useEffect(() => {
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
       if (copyTimerRef.current !== null) {
         window.clearTimeout(copyTimerRef.current);
       }
+      clearEnterPressState();
     };
   }, []);
 
@@ -483,50 +583,66 @@ export function ChatPage({ agent }: ChatPageProps) {
           const isPlaying = playingMessageId === message.id;
           return (
             <article key={message.id} className={`message-row message-row--${message.role}`}>
-              <div className="message-stack">
-                <div className={`message-bubble message-bubble--${message.role}`}>
-                  {message.status === 'thinking' ? (
-                    <div className="thinking-line" aria-label="Agent is thinking">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  ) : null}
-                  {message.role === 'agent' && message.status !== 'thinking' ? (
-                    <div
-                      className="message-markdown"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
-                    />
-                  ) : (
-                    <p>{message.text}</p>
-                  )}
-                </div>
-
-                <div className="message-meta-line">
-                  {statusLabel ? <span className={`message-status message-status--${message.status}`}>{statusLabel}</span> : <span />}
-                  <div className="message-actions" aria-label="Message actions">
-                    <button
-                      className="message-icon-button"
-                      type="button"
-                      aria-label="Copy message"
-                      title={copiedMessageId === message.id ? 'Copied' : 'Copy'}
-                      onClick={() => void handleCopyMessage(message)}
-                    >
-                      <CopyIcon />
-                    </button>
-                    {message.audioUrl ? (
-                      <button
-                        className={`message-icon-button${isPlaying ? ' message-icon-button--playing' : ''}`}
-                        type="button"
-                        aria-label={isPlaying ? 'Pause message audio' : 'Play message audio'}
-                        title={isPlaying ? 'Pause' : 'Play'}
-                        onClick={() => toggleMessageAudio(message)}
-                      >
-                        {isPlaying ? <PauseIcon /> : <PlayIcon />}
-                      </button>
+              <div className="message-row-content">
+                <div className="message-stack">
+                  <div className={`message-bubble message-bubble--${message.role}`}>
+                    {message.status === 'thinking' ? (
+                      <div className="thinking-line" aria-label="Agent is thinking">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
                     ) : null}
+                    {message.role === 'agent' && message.status !== 'thinking' ? (
+                      <div
+                        className="message-markdown"
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
+                      />
+                    ) : (
+                      <p>{message.text}</p>
+                    )}
+                  </div>
+
+                  <div className="message-meta-line">
+                    {statusLabel ? <span className={`message-status message-status--${message.status}`}>{statusLabel}</span> : <span />}
+                    <div className="message-actions" aria-label="Message actions">
+                      <button
+                        className="message-icon-button"
+                        type="button"
+                        aria-label="Copy message"
+                        title={copiedMessageId === message.id ? 'Copied' : 'Copy'}
+                        onClick={() => void handleCopyMessage(message)}
+                      >
+                        <CopyIcon />
+                      </button>
+                      {/*
+                      {message.audioUrl ? (
+                        <button
+                          className={`message-icon-button${isPlaying ? ' message-icon-button--playing' : ''}`}
+                          type="button"
+                          aria-label={isPlaying ? 'Pause message audio' : 'Play message audio'}
+                          title={isPlaying ? 'Pause' : 'Play'}
+                          onClick={() => toggleMessageAudio(message)}
+                        >
+                          {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                        </button>
+                      ) : null}
+                      */}
+                    </div>
                   </div>
                 </div>
+
+                {message.audioUrl ? (
+                  <button
+                    className={`message-sound-button sound-button${isPlaying ? ' message-sound-button--playing' : ''}`}
+                    type="button"
+                    aria-label={isPlaying ? 'Pause message audio' : 'Play message audio'}
+                    title={isPlaying ? 'Pause' : 'Play'}
+                    onClick={() => toggleMessageAudio(message)}
+                  >
+                    <SoundWaveIcon />
+                  </button>
+                ) : null}
               </div>
             </article>
           );
@@ -543,18 +659,17 @@ export function ChatPage({ agent }: ChatPageProps) {
       <footer className="chat-composer">
         <div className="chat-composer-inner">
           <div className="chat-input-shell">
-            <input
-              type="text"
+            <textarea
+              ref={draftInputRef}
+              rows={1}
+              enterKeyHint="send"
               placeholder="Message your partner…"
               aria-label="Message input"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  sendMessage();
-                }
-              }}
+              onKeyDown={handleDraftKeyDown}
+              onKeyUp={handleDraftKeyUp}
+              onBlur={clearEnterPressState}
             />
             <button className="send-input-button" type="button" aria-label="Send message" onClick={sendMessage}>
               <ArrowUpIcon />
