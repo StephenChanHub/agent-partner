@@ -13,6 +13,8 @@ import { BillingGuardService } from '../usage/billing-guard.service';
 import { AuthService } from '../auth/auth.service';
 import { ModelProfilesService } from '../model-profiles/model-profiles.service';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { AppConfigService } from '../../config/app-config.service';
+import { TempAudioService } from './audio/temp-audio.service';
 import {
   mockAgentSessions,
   mockAgents,
@@ -20,7 +22,19 @@ import {
   mockTokenTransactions,
   mockUsageRecords,
   mockUsers,
+  mockVoiceProfiles,
 } from '../../mock/mock-data';
+
+const DEFAULT_ELEVENLABS_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
+
+type ResolvedVoiceProfile = {
+  voiceId: string;
+  modelId?: string | null;
+  outputFormat?: string | null;
+  defaultSpeed?: number | null;
+  defaultStability?: number | null;
+  defaultSimilarityBoost?: number | null;
+};
 
 @Injectable()
 export class RuntimeService {
@@ -33,9 +47,68 @@ export class RuntimeService {
     private readonly auth: AuthService,
     private readonly modelProfiles: ModelProfilesService,
     private readonly prisma: PrismaService,
+    private readonly appConfig: AppConfigService,
+    private readonly tempAudio: TempAudioService,
     @Inject(LLM_PORT) private readonly llm: LLMPort,
     @Inject(TTS_PORT) private readonly tts: TTSPort,
   ) {}
+
+  private async resolveAgent(agentSlug: string) {
+    if (this.prisma.isMockMode) {
+      return mockAgents.find((a: any) => a.slug === agentSlug) || mockAgents[0];
+    }
+
+    const agent = await (this.prisma.db as any).agent.findUnique({
+      where: { slug: agentSlug },
+      include: { publishedVersion: true },
+    });
+    return agent || mockAgents[0];
+  }
+
+  private async resolveAgentVoiceProfile(agent: any): Promise<ResolvedVoiceProfile> {
+    const manifest = agent?.manifest ?? agent?.publishedVersion?.manifest ?? {};
+    const profileId = manifest?.voice?.profileId as string | undefined;
+    const configFallback: ResolvedVoiceProfile = {
+      voiceId: this.appConfig.value.voice.defaultVoiceId || DEFAULT_ELEVENLABS_VOICE_ID,
+      modelId: this.appConfig.value.voice.elevenLabsDefaultModelId,
+      outputFormat: this.appConfig.value.voice.elevenLabsDefaultOutputFormat,
+    };
+
+    if (this.prisma.isMockMode) {
+      const profile =
+        mockVoiceProfiles.find((item) => item.id === profileId) ||
+        mockVoiceProfiles.find((item) => item.isDefault) ||
+        mockVoiceProfiles[0];
+      return {
+        voiceId: profile?.voiceId || configFallback.voiceId,
+        modelId: profile?.modelId || configFallback.modelId,
+        outputFormat: profile?.outputFormat || configFallback.outputFormat,
+        defaultSpeed: profile?.defaultSpeed,
+        defaultStability: profile?.defaultStability,
+        defaultSimilarityBoost: profile?.defaultSimilarityBoost,
+      };
+    }
+
+    let profile: any = null;
+    if (profileId) {
+      profile = await (this.prisma.db as any).voiceProfile.findUnique({ where: { id: profileId } });
+    }
+    if (!profile) {
+      profile = await (this.prisma.db as any).voiceProfile.findFirst({
+        where: { isDefault: true, status: 'PUBLISHED' },
+      });
+    }
+    if (!profile) return configFallback;
+
+    return {
+      voiceId: profile.voiceId || configFallback.voiceId,
+      modelId: profile.modelId || configFallback.modelId,
+      outputFormat: profile.outputFormat || configFallback.outputFormat,
+      defaultSpeed: profile.defaultSpeed,
+      defaultStability: profile.defaultStability,
+      defaultSimilarityBoost: profile.defaultSimilarityBoost,
+    };
+  }
 
   async handleEvent(dto: CreateRuntimeEventDto) {
     const context = await this.contextBuilder.build(dto);
@@ -358,10 +431,11 @@ export class RuntimeService {
   }
 
   async handleVoiceChat(dto: VoiceChatDto, authorization?: string) {
-    const transcript = dto.mockText ?? 'Jarvis mock voice input';
+    const transcript = (dto.mockText ?? '').trim() || 'Jarvis mock voice input';
+    const agentSlug = dto.agentSlug || 'jarvis';
     const textResult = await this.handleTextChat(
       {
-        agentSlug: dto.agentSlug,
+        agentSlug,
         sessionId: dto.sessionId,
         message: transcript,
         client: dto.client,
@@ -369,28 +443,64 @@ export class RuntimeService {
       authorization,
     );
 
+    const llmError = (textResult as { llmError?: { code: string } }).llmError;
+    if (llmError || !textResult.assistantMessage.content?.trim()) {
+      return {
+        sessionId: textResult.sessionId,
+        transcript,
+        userMessage: { ...textResult.userMessage, inputMode: 'voice' },
+        assistantMessage: { ...textResult.assistantMessage, responseMode: 'voice' },
+        ...(llmError ? { llmError } : {}),
+        usage: textResult.usage,
+        mode: textResult.mode,
+      };
+    }
+
+    const agent = await this.resolveAgent(agentSlug);
+    const voiceProfile = await this.resolveAgentVoiceProfile(agent);
     const ttsResult = await this.tts.synthesize({
       text: textResult.assistantMessage.content,
+      voiceId: voiceProfile.voiceId,
+      modelId: voiceProfile.modelId || undefined,
+      outputFormat: voiceProfile.outputFormat || undefined,
+      speed: voiceProfile.defaultSpeed ?? undefined,
+      stability: voiceProfile.defaultStability ?? undefined,
+      similarityBoost: voiceProfile.defaultSimilarityBoost ?? undefined,
       format: 'mp3',
     });
 
     const ttsUsage = await this.usageMeter.fromTtsUsage(textResult.assistantMessage.content.length);
-    const audioId = `mock-audio-${Date.now()}`;
+    let tempUrl = ttsResult.audioUrl;
+    let mimeType = ttsResult.mimeType;
+    let expiresIn = 600;
+
+    if (ttsResult.audioBuffer?.length) {
+      const saved = await this.tempAudio.save({
+        messageId: textResult.assistantMessage.id,
+        buffer: ttsResult.audioBuffer,
+        mimeType: ttsResult.mimeType,
+        extension: 'mp3',
+      });
+      tempUrl = saved.tempUrl;
+      mimeType = saved.mimeType;
+      expiresIn = saved.expiresIn;
+    } else if (ttsResult.audioUrl?.startsWith('mock://')) {
+      tempUrl = `/runtime/audio/temp/mock-audio-${Date.now()}`;
+    }
 
     return {
       sessionId: textResult.sessionId,
       transcript,
       userMessage: { ...textResult.userMessage, inputMode: 'voice' },
       assistantMessage: { ...textResult.assistantMessage, responseMode: 'voice' },
+      ...(llmError ? { llmError } : {}),
       audio: {
         messageId: textResult.assistantMessage.id,
-        tempUrl: ttsResult.audioUrl?.startsWith('mock://')
-          ? `/runtime/audio/temp/${audioId}`
-          : ttsResult.audioUrl,
-        mimeType: ttsResult.mimeType,
+        tempUrl,
+        mimeType,
         storagePolicy:
           dto.client === 'device' ? 'PLAY_AND_DISCARD' : 'CLIENT_CACHE_OPTIONAL',
-        expiresIn: 600,
+        expiresIn,
       },
       usage: {
         ...textResult.usage,
@@ -398,7 +508,7 @@ export class RuntimeService {
         ttsCostAgentTokens: ttsUsage.costTokens,
         costAgentTokens: textResult.usage.costAgentTokens + ttsUsage.costTokens,
       },
-      mode: 'mock-compatible',
+      mode: textResult.mode === 'live' ? 'live' : 'mock-compatible',
     };
   }
 }

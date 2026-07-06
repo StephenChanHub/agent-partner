@@ -68,6 +68,25 @@ function buildHeaders(body?: unknown): HeadersInit {
   return headers;
 }
 
+export function getApiAuthHeaders(): HeadersInit {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export function resolveApiUrl(path?: string): string {
+  if (!path) return '';
+  if (/^(https?:|blob:)/i.test(path)) return path;
+
+  const base = getApiBase().replace(/\/$/, '');
+  if (path.startsWith('/api/')) {
+    return `${base}${path.slice('/api'.length)}`;
+  }
+  if (path.startsWith('/')) {
+    return `${base}${path}`;
+  }
+  return `${base}/${path}`;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const base = getApiBase();
   const res = await fetch(`${base}${path}`, { headers: buildHeaders() });

@@ -3,7 +3,7 @@ import { AgentFlipCard } from '../components/AgentFlipCard';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { type HomeAgent } from '../config/agents';
 import { isUserLoggedIn, requestUserAuth, updateUserSession, useUserSession } from '../state/userSession';
-import { apiGet, apiPost } from '../utils/apiClient';
+import { apiGet, apiPost, getApiAuthHeaders, resolveApiUrl } from '../utils/apiClient';
 import { marked } from 'marked';
 import './ChatPage.css';
 
@@ -681,13 +681,17 @@ export function ChatPage({ agent }: ChatPageProps) {
         status: 'ready',
       };
 
-      const voiceAudioUrl = 'audio' in result ? result.audio?.tempUrl : result.voice?.audioUrl;
+      const voiceAudioUrl = resolveApiUrl(
+        'audio' in result ? result.audio?.tempUrl : result.voice?.audioUrl,
+      );
       const voiceMimeType = 'audio' in result ? result.audio?.mimeType : result.voice?.mimeType;
       const shouldCacheAudio = 'audio' in result ? result.audio?.storagePolicy !== 'PLAY_AND_DISCARD' : result.voice?.shouldCache !== false;
 
       if (voiceAudioUrl) {
         try {
-          const response = await fetch(voiceAudioUrl);
+          const response = await fetch(voiceAudioUrl, {
+            headers: getApiAuthHeaders(),
+          });
           const audioBlob = await blobFromResponse(response);
           const audioUrl = getUserAudioUrl(audioBlob);
           assistantMessage.audioUrl = audioUrl;

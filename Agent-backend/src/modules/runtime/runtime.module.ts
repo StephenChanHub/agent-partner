@@ -24,9 +24,10 @@ import { TTSModule } from '../../infrastructure/tts/tts.module';
 import { ModelProfilesModule } from '../model-profiles/model-profiles.module';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../../infrastructure/database/prisma.module';
+import { AppConfigModule } from '../../config/app-config.module';
 
 @Module({
-  imports: [UsageModule, LLMModule, TTSModule, ModelProfilesModule, AuthModule, PrismaModule],
+  imports: [UsageModule, LLMModule, TTSModule, ModelProfilesModule, AuthModule, PrismaModule, AppConfigModule],
   controllers: [RuntimeController, RuntimeChatController, TempAudioController],
   providers: [
     RuntimeService,

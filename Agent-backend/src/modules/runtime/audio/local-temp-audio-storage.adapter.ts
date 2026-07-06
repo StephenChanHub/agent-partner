@@ -32,7 +32,7 @@ export class LocalTempAudioStorageAdapter implements TempAudioStoragePort {
 
     return {
       audioId,
-      tempUrl: `/api/v1/runtime/audio/temp/${audioId}`,
+      tempUrl: `/runtime/audio/temp/${audioId}`,
       mimeType: input.mimeType,
       expiresAt,
       expiresIn: ttl,
