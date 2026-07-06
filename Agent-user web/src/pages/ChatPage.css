@@ -436,6 +436,12 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
+.voice-input-button--recording {
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff5d5d, #d91c5c) !important;
+  box-shadow: 0 22px 52px rgba(217, 28, 92, 0.28) !important;
+}
+
 .agent-profile-overlay {
   position: fixed;
   inset: 0;

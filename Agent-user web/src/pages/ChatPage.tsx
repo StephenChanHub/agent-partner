@@ -7,6 +7,33 @@ import { apiGet, apiPost } from '../utils/apiClient';
 import { marked } from 'marked';
 import './ChatPage.css';
 
+type SpeechRecognitionInstance = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: ((event: Event) => void) | null;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: ((event: Event) => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+type VoiceAudioCacheRecord = {
+  messageId: string;
+  audioBlob: Blob;
+  mimeType: string;
+  createdAt: string;
+};
+
+
+const AUDIO_CACHE_DB = 'jarvis_audio_cache';
+const AUDIO_CACHE_STORE = 'audio_messages';
+const DEFAULT_STT_LANG = 'zh-CN';
+
 // Configure marked for safe rendering
 marked.setOptions({
   breaks: true,
@@ -38,6 +65,11 @@ type ChatApiResponse = {
   userMessage: { id: string; role: string; content: string };
   assistantMessage: { id: string; role: string; content: string };
   llmError?: { code: 'NETWORK_ERROR' | 'QUOTA_EXCEEDED' | 'NO_RESPONSE' };
+  voice?: {
+    audioUrl?: string;
+    mimeType?: string;
+    shouldCache?: boolean;
+  };
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -51,15 +83,26 @@ type ChatApiResponse = {
   mode: string;
 };
 
-type SessionMessagesResponse = {
-  sessionId: string;
-  items: Array<{
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    createdAt: string;
-  }>;
+type VoiceChatApiResponse = ChatApiResponse & {
+  transcript?: string;
+  audio?: {
+    messageId: string;
+    tempUrl?: string;
+    mimeType?: string;
+    storagePolicy?: 'PLAY_AND_DISCARD' | 'CLIENT_CACHE_OPTIONAL';
+    expiresIn?: number;
+  };
 };
+
+function getUserAudioUrl(audioBlob: Blob): string {
+  return URL.createObjectURL(audioBlob);
+}
+
+function revokeAudioUrl(audioUrl?: string) {
+  if (audioUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(audioUrl);
+  }
+}
 
 function goBackHome() {
   window.history.pushState({}, '', '/');
@@ -196,6 +239,63 @@ function buildAgentIntroMessage(agent: HomeAgent): ChatMessage {
   };
 }
 
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === 'undefined') return null;
+  return (
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition ||
+    null
+  );
+}
+
+function openAudioCacheDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(AUDIO_CACHE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(AUDIO_CACHE_STORE)) {
+        db.createObjectStore(AUDIO_CACHE_STORE, { keyPath: 'messageId' });
+      }
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+async function saveAudioToCache(record: VoiceAudioCacheRecord): Promise<void> {
+  const db = await openAudioCacheDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(AUDIO_CACHE_STORE, 'readwrite');
+      tx.objectStore(AUDIO_CACHE_STORE).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function loadAudioFromCache(messageId: string): Promise<VoiceAudioCacheRecord | null> {
+  const db = await openAudioCacheDb();
+  try {
+    return await new Promise<VoiceAudioCacheRecord | null>((resolve, reject) => {
+      const tx = db.transaction(AUDIO_CACHE_STORE, 'readonly');
+      const request = tx.objectStore(AUDIO_CACHE_STORE).get(messageId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function blobFromResponse(response: Response): Promise<Blob> {
+  const blob = await response.blob();
+  return blob;
+}
+
 async function copyTextToClipboard(text: string) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -275,6 +375,8 @@ export function ChatPage({ agent }: ChatPageProps) {
   const [draft, setDraft] = useState('');
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [sttSupported, setSttSupported] = useState(false);
   const messagesRef = useRef<HTMLElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const copyTimerRef = useRef<number | null>(null);
@@ -282,6 +384,8 @@ export function ChatPage({ agent }: ChatPageProps) {
   const enterPressStartedAtRef = useRef<number | null>(null);
   const enterLongPressFiredRef = useRef(false);
   const enterLongPressTimerRef = useRef<number | null>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const voiceDraftModeRef = useRef(false);
 
   const adjustDraftHeight = () => {
     const element = draftInputRef.current;
@@ -366,14 +470,26 @@ export function ChatPage({ agent }: ChatPageProps) {
         // Load messages
         const msgData: any = await apiGet(`/agent-sessions/${sess.id}/messages`);
         const items = msgData?.items ?? [];
-        const loaded: ChatMessage[] = items
-          .filter((m: any) => m.content?.trim())
-          .map((m: any) => ({
+        const loaded: ChatMessage[] = [];
+        for (const m of items.filter((item: any) => item.content?.trim())) {
+          const nextMessage: ChatMessage = {
             id: m.id,
             role: m.role === 'user' ? 'user' : 'agent',
             text: m.content,
             status: 'ready' as const,
-          }));
+          };
+          if (nextMessage.role === 'agent') {
+            try {
+              const cached = await loadAudioFromCache(nextMessage.id);
+              if (cached) {
+                nextMessage.audioUrl = getUserAudioUrl(cached.audioBlob);
+              }
+            } catch (error) {
+              console.error('Load cached assistant audio failed', error);
+            }
+          }
+          loaded.push(nextMessage);
+        }
         if (loaded.length > 0) {
           setMessages(loaded);
         } else {
@@ -404,6 +520,10 @@ export function ChatPage({ agent }: ChatPageProps) {
   }, [draft]);
 
   useEffect(() => {
+    setSttSupported(getSpeechRecognitionConstructor() !== null);
+  }, []);
+
+  useEffect(() => {
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
@@ -411,8 +531,15 @@ export function ChatPage({ agent }: ChatPageProps) {
         window.clearTimeout(copyTimerRef.current);
       }
       clearEnterPressState();
+      speechRecognitionRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      messages.forEach((message) => revokeAudioUrl(message.audioUrl));
+    };
+  }, [messages]);
 
   const handleCopyMessage = async (message: ChatMessage) => {
     try {
@@ -465,6 +592,9 @@ export function ChatPage({ agent }: ChatPageProps) {
     if (!text) return;
     if (requireLogin()) return;
 
+    const useVoiceMode = voiceDraftModeRef.current;
+    voiceDraftModeRef.current = false;
+
     const now = Date.now();
     const userMessage: ChatMessage = {
       id: `msg_user_${now}`,
@@ -483,11 +613,11 @@ export function ChatPage({ agent }: ChatPageProps) {
     setInsufficientBalance(false);
 
     try {
-      const result = await apiPost<ChatApiResponse>('/chat', {
+      const result = await apiPost<ChatApiResponse | VoiceChatApiResponse>(useVoiceMode ? '/voice' : '/chat', {
         agentSlug: agent.slug,
-        message: text,
-        sessionId: sessionId,
+        sessionId,
         client: 'web',
+        ...(useVoiceMode ? { mockText: text } : { message: text }),
       });
 
       const llmFailureKind = result.llmError?.code
@@ -508,7 +638,6 @@ export function ChatPage({ agent }: ChatPageProps) {
         return;
       }
 
-      // Replace the thinking message with the real response
       const assistantMessage: ChatMessage = {
         id: result.assistantMessage.id,
         role: 'agent',
@@ -516,17 +645,39 @@ export function ChatPage({ agent }: ChatPageProps) {
         status: 'ready',
       };
 
-      setMessages((current) =>
-        current.map((msg) =>
-          msg.id === thinkingMessage.id ? assistantMessage : msg,
-        ),
-      );
+      const voiceAudioUrl = 'audio' in result ? result.audio?.tempUrl : result.voice?.audioUrl;
+      const voiceMimeType = 'audio' in result ? result.audio?.mimeType : result.voice?.mimeType;
+      const shouldCacheAudio = 'audio' in result ? result.audio?.storagePolicy !== 'PLAY_AND_DISCARD' : result.voice?.shouldCache !== false;
 
-      // Persist session ID for subsequent messages
+      if (voiceAudioUrl) {
+        try {
+          const response = await fetch(voiceAudioUrl);
+          const audioBlob = await blobFromResponse(response);
+          const audioUrl = getUserAudioUrl(audioBlob);
+          assistantMessage.audioUrl = audioUrl;
+
+          if (shouldCacheAudio) {
+            void saveAudioToCache({
+              messageId: assistantMessage.id,
+              audioBlob,
+              mimeType: voiceMimeType || audioBlob.type || 'audio/mpeg',
+              createdAt: new Date().toISOString(),
+            }).catch((error) => {
+              console.error('Audio cache save failed', error);
+            });
+          }
+        } catch (error) {
+          console.error('Fetch assistant audio failed', error);
+        }
+      }
+
+      setMessages((current) => current.map((msg) => (msg.id === thinkingMessage.id ? assistantMessage : msg)));
+
       if (result.sessionId) setSessionId(result.sessionId);
-
-      // Update session token balance
       updateUserSession({ tokens: result.usage.balanceAfter });
+      if (useVoiceMode) {
+        voiceDraftModeRef.current = false;
+      }
     } catch (error: unknown) {
       const failureKind = classifyRequestError(error);
 
@@ -551,6 +702,67 @@ export function ChatPage({ agent }: ChatPageProps) {
           ),
         );
       }
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      speechRecognitionRef.current?.stop();
+      return;
+    }
+
+    if (requireLogin()) return;
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    speechRecognitionRef.current = recognition;
+    recognition.lang = DEFAULT_STT_LANG;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    let finalTranscript = '';
+
+    recognition.onstart = () => {
+      voiceDraftModeRef.current = true;
+      setIsRecording(true);
+    };
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      const nextDraft = (finalTranscript || transcript).trim();
+      setDraft(nextDraft);
+    };
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition failed', event?.error);
+      setIsRecording(false);
+      voiceDraftModeRef.current = false;
+      speechRecognitionRef.current = null;
+    };
+    recognition.onend = () => {
+      setIsRecording(false);
+      speechRecognitionRef.current = null;
+      const transcript = draftInputRef.current?.value?.trim() || finalTranscript.trim() || draft.trim();
+      if (transcript && transcript !== draft.trim()) {
+        setDraft(transcript);
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error('Start speech recognition failed', error);
+      setIsRecording(false);
+      voiceDraftModeRef.current = false;
+      speechRecognitionRef.current = null;
     }
   };
 
@@ -675,7 +887,14 @@ export function ChatPage({ agent }: ChatPageProps) {
               <ArrowUpIcon />
             </button>
           </div>
-          <button className="voice-input-button" type="button" aria-label="Voice input" onClick={requireLogin}>
+          <button
+            className={`voice-input-button${isRecording ? ' voice-input-button--recording' : ''}`}
+            type="button"
+            aria-label={isRecording ? 'Stop recording' : 'Start voice input'}
+            title={sttSupported ? (isRecording ? 'Stop recording' : 'Start voice input') : 'Speech recognition is not supported in this browser'}
+            onClick={() => void toggleRecording()}
+            disabled={!sttSupported && !isRecording}
+          >
             <MicIcon />
           </button>
         </div>
