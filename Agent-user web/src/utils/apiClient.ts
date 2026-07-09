@@ -3,24 +3,10 @@ let _apiBase: string | null = null;
 function getApiBase(): string {
   if (_apiBase) return _apiBase;
 
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    // LAN / server access — keep API on the same VM/server IP, port 3000.
-    if (
-      hostname &&
-      hostname !== 'localhost' &&
-      hostname !== '127.0.0.1' &&
-      !hostname.startsWith('192.168.64.')
-    ) {
-      _apiBase = `${window.location.protocol}//${hostname}:3000/api`;
-      return _apiBase;
-    }
-  }
-
   _apiBase =
     (typeof import.meta !== 'undefined' &&
       (import.meta as any).env?.VITE_API_BASE_URL) ||
-    'http://192.168.64.2:3000/api';
+    (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://192.168.64.2:3000/api');
   return _apiBase as string;
 }
 

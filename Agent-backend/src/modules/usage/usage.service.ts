@@ -56,7 +56,7 @@ export class UsageService {
     return { items: mockUsageRecords.filter((record) => record.userId === user.id), page: 1, pageSize: 20, total: 1 };
   }
 
-  getAllUsageRecords(query: any = {}) {
+  async getAllUsageRecords(query: any = {}) {
     const userId = query.userId;
     const page = Math.max(Number(query.page ?? 1), 1);
     const pageSize = Math.max(Number(query.pageSize ?? 10), 1);
@@ -69,18 +69,46 @@ export class UsageService {
       return { items: filtered.slice(start, start + pageSize), total: filtered.length };
     }
 
-    // Real DB mode — delegate to prisma with pagination
     const where = userId ? { userId } : {};
-    const [items, total] = [
+    const [records, total] = await Promise.all([
       (this.prisma.db as any).usageRecord.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: {
+          user: { select: { email: true } },
+          agent: { select: { slug: true } },
+          modelProfile: { select: { provider: true, modelName: true } },
+        },
       }),
       (this.prisma.db as any).usageRecord.count({ where }),
-    ];
-    return { items, total };
+    ]);
+
+    return {
+      items: records.map((record: any) => this.toStudioUsageRecord(record)),
+      total,
+    };
+  }
+
+  private toStudioUsageRecord(record: any) {
+    const metadata = (record.metadata ?? {}) as Record<string, unknown>;
+    const mode = record.ttsCharacters > 0 || record.type === 'TTS_USAGE' ? 'VOICE' : 'TEXT';
+    return {
+      id: record.id,
+      userId: record.userId,
+      userEmail: record.user?.email ?? String(metadata.userEmail ?? ''),
+      agentId: record.agentId ?? '',
+      agentSlug: record.agent?.slug ?? String(metadata.agentSlug ?? ''),
+      mode,
+      provider: String(record.modelProfile?.provider ?? metadata.provider ?? '').toLowerCase(),
+      model: record.modelProfile?.modelName ?? String(metadata.model ?? ''),
+      inputTokens: Number(record.inputTokens ?? 0),
+      outputTokens: Number(record.outputTokens ?? 0),
+      ttsCharacters: Number(record.ttsCharacters ?? 0),
+      costTokens: Number(record.costTokens ?? 0),
+      createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
+    };
   }
 
   async getUserUsage(userId: string) {

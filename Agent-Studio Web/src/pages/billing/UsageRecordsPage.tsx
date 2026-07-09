@@ -19,7 +19,7 @@ export function UsageRecordsPage() {
     <Card className="ios-card"><Table
       rowKey="id"
       loading={usage.isLoading}
-      dataSource={usage.data?.items ?? []}
+      dataSource={Array.isArray(usage.data?.items) ? usage.data.items : []}
       pagination={{
         current: page,
         pageSize,

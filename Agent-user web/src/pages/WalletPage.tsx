@@ -74,7 +74,10 @@ function mapApiTransactions(apiTransactions: ApiTokenTransaction[]): TokenTransa
   return apiTransactions.map((transaction) => ({
     id: transaction.id,
     createdAt: transaction.createdAt,
-    title: transaction.description || transaction.type,
+    title:
+      transaction.description === 'Manual recharge approved by admin.'
+        ? 'The recharge has been credited to your account.'
+        : (transaction.description || transaction.type),
     direction: transaction.direction,
     amount: transaction.amountTokens,
     balanceAfter: transaction.balanceAfter,
@@ -106,9 +109,9 @@ function formatDateTime(value?: string | null) {
 }
 
 function getOrderStatusText(status: RechargeOrder['status']) {
-  if (status === 'PAID') return '已到账';
-  if (status === 'EXPIRED') return '已取消';
-  return '待管理员确认';
+  if (status === 'PAID') return 'received';
+  if (status === 'EXPIRED') return 'canceled';
+  return 'pending';
 }
 
 function getOrderStatusClass(status: RechargeOrder['status']) {
@@ -180,16 +183,37 @@ export function WalletPage() {
       return;
     }
 
-    const [apiOrders, apiTransactions, usage] = await Promise.all([
+    const [ordersResult, transactionsResult, usageResult] = await Promise.allSettled([
       walletApi.listRechargeOrders(),
       walletApi.listTokenTransactions(),
       walletApi.getBalance(),
     ]);
-    const nextBalance = usage.balanceAgentTokens;
-    setOrders(mapApiOrders(apiOrders.items).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setTransactions(mapApiTransactions(apiTransactions.items).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setBalance(nextBalance);
-    updateUserSession({ tokens: nextBalance });
+
+    const errors: string[] = [];
+
+    if (ordersResult.status === 'fulfilled') {
+      setOrders(mapApiOrders(ordersResult.value.items).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } else {
+      errors.push(`订单加载失败：${ordersResult.reason instanceof Error ? ordersResult.reason.message : '未知错误'}`);
+    }
+
+    if (transactionsResult.status === 'fulfilled') {
+      setTransactions(mapApiTransactions(transactionsResult.value.items).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } else {
+      errors.push(`流水加载失败：${transactionsResult.reason instanceof Error ? transactionsResult.reason.message : '未知错误'}`);
+    }
+
+    if (usageResult.status === 'fulfilled') {
+      const nextBalance = usageResult.value.balanceAgentTokens;
+      setBalance(nextBalance);
+      updateUserSession({ tokens: nextBalance });
+    } else {
+      errors.push(`余额加载失败：${usageResult.reason instanceof Error ? usageResult.reason.message : '未知错误'}`);
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors.join('；'));
+    }
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -267,14 +291,14 @@ export function WalletPage() {
       const order = await walletApi.createRechargeOrder(payModalPackage.id);
       setOrders((current) => [mapApiOrders([order])[0], ...current]);
       setActiveTab('orders');
-      setNotice({ type: 'success', text: `订单 ${order.orderNo} 已提交，状态为 Pending。管理员确认后 Tokens 将自动到账；5 分钟未处理会自动取消。` });
+      setNotice({ type: 'success', text: `订单 ${order.orderNo} 已提交，支付成功后预计五分钟内到账，请耐心等待！未支付订单将在5 分钟后自动取消，并且期间无法创建新订单。` });
       setPayModalPackage(null);
       setCopied(false);
       await refreshWalletData();
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('未处理')
+      const message = error instanceof Error
         ? error.message
-        : '你有未处理完成的充值订单，请先等待管理员确认或订单自动取消后再下单。';
+        : '下单失败，请稍后重试。';
       setNotice({ type: 'error', text: message });
       setActiveTab('orders');
       await refreshWalletData().catch(() => undefined);
@@ -503,9 +527,7 @@ export function WalletPage() {
                 </div>
 
                 <p className="pay-email-hint">
-                  为保障支付安全，请点击复制邮箱，并在付款页面粘贴填写，以完成身份二次确认。当前版本未接入真实支付宝/微信回调，点击 Payed 后会生成 Pending 订单并同步给管理员；管理员确认充值后 Tokens 自动到账，5 分钟未处理订单会自动取消。
-                  <br />
-                  For payment security, please copy your email and paste it on the payment page. Payed submits a pending order for manual admin confirmation.
+                  为保障支付安全，请点击复制邮箱，并在付款页面粘贴填写，以完成身份二次确认。回到此页面后点击 Payed 等待充值到账；未支付订单将在5 分钟后自动取消，并且期间无法创建新订单。
                 </p>
               </>
             ) : null}

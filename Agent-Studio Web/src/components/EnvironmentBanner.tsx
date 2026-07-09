@@ -8,6 +8,7 @@ import { APP_ENV, isSandboxEnv } from '../config/runtime';
 export function EnvironmentBanner() {
   const ready = useQuery({ queryKey: ['ready'], queryFn: studioApi.ready, refetchInterval: 30000 });
   const sandbox = isSandboxEnv();
+  const consoleOrigin = typeof window !== 'undefined' ? window.location.origin : 'N/A';
 
   return (
     <Alert
@@ -17,7 +18,7 @@ export function EnvironmentBanner() {
       icon={<CloudServerOutlined />}
       message={
         <Space wrap>
-          <Typography.Text strong>{sandbox ? 'Sandbox Mode' : 'Production Guarded Mode'}</Typography.Text>
+          <Typography.Text strong>{sandbox ? 'Sealos Devbox / Sandbox' : 'Production Guarded Mode'}</Typography.Text>
           <Tag color={ready.data ? 'green' : ready.isError ? 'red' : 'gold'} icon={ready.data ? <CheckCircleOutlined /> : undefined}>
             Core {ready.data ? 'Ready' : ready.isError ? 'Offline' : 'Checking'}
           </Tag>
@@ -26,8 +27,9 @@ export function EnvironmentBanner() {
       }
       description={
         <Space direction="vertical" size={2}>
-          <span>当前 API：{API_BASE_URL}</span>
-          <span>所有正式上线能力均采用预留式结构：接口、确认流、错误处理、审计字段先稳定，真实 Provider / 支付 / 文件上传后续替换实现。</span>
+          <span>当前控制台：{consoleOrigin}</span>
+          <span>当前 Core API：{API_BASE_URL}</span>
+          <span>当前链路：Studio 页面 → Core API → MySQL / Provider。上线时只替换环境变量，不改页面调用结构。</span>
         </Space>
       }
       action={<Button size="small" icon={<ReloadOutlined />} onClick={() => ready.refetch()}>重试</Button>}

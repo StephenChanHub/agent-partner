@@ -256,12 +256,12 @@ export function PricingPage() {
             {
               key: 'rules',
               label: '计费规则 CRUD',
-              children: <Card className="ios-card" title="Billing Pricing Rules"><Table rowKey="id" loading={rules.isLoading} dataSource={rules.data ?? []} columns={ruleColumns} scroll={{ x: 1080 }} /></Card>,
+              children: <Card className="ios-card" title="Billing Pricing Rules"><Table rowKey="id" loading={rules.isLoading} dataSource={Array.isArray(rules.data) ? rules.data : []} columns={ruleColumns} scroll={{ x: 1080 }} /></Card>,
             },
             {
               key: 'packages',
               label: '充值套餐 CRUD',
-              children: <Card className="ios-card" title="充值套餐 CRUD + 折扣快捷操作" extra={<Button type="primary" disabled={agentTokensPerRmb <= 0} onClick={() => openPackageForm()}>新建套餐</Button>}><Table rowKey="id" loading={packages.isLoading} dataSource={packages.data ?? []} columns={packageColumns} scroll={{ x: 1080 }} /></Card>,
+              children: <Card className="ios-card" title="充值套餐 CRUD + 折扣快捷操作" extra={<Button type="primary" disabled={agentTokensPerRmb <= 0} onClick={() => openPackageForm()}>新建套餐</Button>}><Table rowKey="id" loading={packages.isLoading} dataSource={Array.isArray(packages.data) ? packages.data : []} columns={packageColumns} scroll={{ x: 1080 }} /></Card>,
             },
           ]}
         />

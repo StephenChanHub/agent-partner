@@ -3,10 +3,10 @@ import { AuditOutlined, CloudSyncOutlined, LockOutlined, SafetyCertificateOutlin
 import type { StudioReadinessItem } from '../types/api';
 
 const items: StudioReadinessItem[] = [
-  { key: 'api-contract', title: 'API Contract', status: 'READY', description: '统一响应、分页结构、错误格式和请求追踪 ID 已在前端固定。' },
-  { key: 'provider', title: 'Provider Switch', status: 'RESERVED', description: 'DeepSeek / ElevenLabs 仍为 Mock，但前端不依赖 Mock 细节。' },
-  { key: 'audit', title: 'Audit Trail', status: 'RESERVED', description: '危险操作已有双重确认，后续接入审计事件无需重写页面。' },
-  { key: 'security', title: 'Security Guard', status: 'SANDBOX', description: '单管理员 JWT 已接入；多管理员 RBAC 后续可替换权限层。' },
+  { key: 'api-contract', title: 'API Contract', status: 'READY', description: '用户端与 Studio 均已固定通过后端 API 访问，不再依赖前端内置 Mock 结构。' },
+  { key: 'database', title: 'Database Schema', status: 'READY', description: '空库初始化 SQL 已生成到仓库根目录 `sql.md`，可直接导入 partner_db。' },
+  { key: 'provider', title: 'Provider Switch', status: 'SANDBOX', description: 'LLM / TTS 通过环境变量切换；页面层不再关心具体 Provider 地址。' },
+  { key: 'security', title: 'Security Guard', status: 'SANDBOX', description: '当前为单管理员 JWT；多管理员 RBAC 和审计扩展仍可在现有结构上继续接入。' },
 ];
 
 const iconMap = {

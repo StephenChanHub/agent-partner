@@ -41,8 +41,10 @@ async function bootstrap() {
   await app.listen(port, host);
 
   const prefix = process.env.API_PREFIX ?? 'api';
-  console.log(`Jarvis Core sandbox API is running on http://${host}:${port}/${prefix}`);
-  console.log(`For Mac host + UTM Ubuntu, use http://192.168.64.2:${port}/${prefix} if that is the VM IP.`);
+  console.log(`Jarvis Core API listening on http://${host}:${port}/${prefix}`);
+  if (process.env.PUBLIC_API_URL) {
+    console.log(`Public API URL: ${process.env.PUBLIC_API_URL.replace(/\/$/, '')}/${prefix}`);
+  }
 }
 
 bootstrap();

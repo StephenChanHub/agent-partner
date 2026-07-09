@@ -5,23 +5,10 @@ let _mediaBase: string | null = null;
 function getMediaBase(): string {
   if (_mediaBase) return _mediaBase;
 
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (
-      hostname &&
-      hostname !== 'localhost' &&
-      hostname !== '127.0.0.1' &&
-      !hostname.startsWith('192.168.64.')
-    ) {
-      _mediaBase = `${window.location.protocol}//${hostname}:3000/api`;
-      return _mediaBase;
-    }
-  }
-
   _mediaBase =
     (typeof import.meta !== 'undefined' &&
       (import.meta as any).env?.VITE_API_BASE_URL) ||
-    'http://192.168.64.2:3000/api';
+    (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://192.168.64.2:3000/api');
   return _mediaBase as string;
 }
 
