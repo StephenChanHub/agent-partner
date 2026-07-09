@@ -10,29 +10,32 @@ export class ModelProfilesController {
   constructor(private readonly service: ModelProfilesService) {}
 
   @Get()
-  list() { const items = this.service.list(); return paginated(items, { total: items.length }); }
+  async list() {
+    const items = await this.service.list();
+    return paginated(items, { total: items.length });
+  }
 
   @Post()
-  create(@Body() dto: CreateModelProfileDto) { return ok(this.service.create(dto)); }
+  async create(@Body() dto: CreateModelProfileDto) { return ok(await this.service.create(dto)); }
 
   @Get(':id')
-  get(@Param('id') id: string) { return ok(this.service.get(id)); }
+  async get(@Param('id') id: string) { return ok(await this.service.get(id)); }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateModelProfileDto) { return ok(this.service.update(id, dto)); }
+  async update(@Param('id') id: string, @Body() dto: UpdateModelProfileDto) { return ok(await this.service.update(id, dto)); }
 
   @Post(':id/test')
-  test(@Param('id') id: string, @Body() dto: TestModelProfileDto) { return ok(this.service.test(id, dto)); }
+  async test(@Param('id') id: string, @Body() dto: TestModelProfileDto) { return ok(await this.service.test(id, dto)); }
 
   @Post(':id/set-default')
-  setDefault(@Param('id') id: string) { return ok(this.service.setDefault(id)); }
+  async setDefault(@Param('id') id: string) { return ok(await this.service.setDefault(id)); }
 
   @Post(':id/enable')
-  enable(@Param('id') id: string) { return ok(this.service.enable(id)); }
+  async enable(@Param('id') id: string) { return ok(await this.service.enable(id)); }
 
   @Post(':id/disable')
-  disable(@Param('id') id: string) { return ok(this.service.disable(id)); }
+  async disable(@Param('id') id: string) { return ok(await this.service.disable(id)); }
 
   @Delete(':id')
-  delete(@Param('id') id: string) { return ok(this.service.delete(id)); }
+  async delete(@Param('id') id: string) { return ok(await this.service.delete(id)); }
 }

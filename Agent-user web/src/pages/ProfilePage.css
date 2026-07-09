@@ -229,6 +229,51 @@
   outline: 1px solid rgba(13, 33, 165, 0.10);
 }
 
+.profile-email-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.profile-field--disabled .profile-email-input-wrap input {
+  width: 100%;
+  padding-right: 54px;
+  cursor: default;
+}
+
+.profile-email-copy-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(238, 241, 255, 0.8);
+  color: var(--agent-blue);
+  cursor: pointer;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.profile-email-copy-btn:hover {
+  background: rgba(13, 33, 165, 0.12);
+  transform: translateY(calc(-50% - 1px));
+}
+
+.profile-email-copy-btn--copied {
+  background: rgba(13, 33, 165, 0.14);
+  color: var(--agent-blue);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
 .profile-setting-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -367,10 +412,53 @@
   font-weight: 820;
 }
 
-.profile-password-grid {
+.profile-password-body {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+  align-items: start;
+}
+
+.profile-password-fields .profile-field:last-child {
+  margin-bottom: 0;
+}
+
+.profile-email-code-block .profile-field {
+  margin-bottom: 0;
+}
+
+.profile-email-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-email-code-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-email-code-send {
+  flex-shrink: 0;
+  height: 54px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 18px;
+  cursor: pointer;
+  color: var(--agent-blue);
+  background: rgba(238, 241, 255, 0.92);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 1px 0 rgba(15, 23, 42, 0.03);
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.profile-email-code-send:hover {
+  background: rgba(13, 33, 165, 0.12);
+  transform: translateY(-1px);
 }
 
 .profile-password-button {
@@ -397,7 +485,7 @@
 }
 
 @media (max-width: 760px) {
-  .profile-password-grid {
+  .profile-password-body {
     grid-template-columns: 1fr;
   }
 

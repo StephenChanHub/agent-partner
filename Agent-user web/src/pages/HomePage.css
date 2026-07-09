@@ -1692,6 +1692,15 @@
   }
 }
 
+/* Home agent card hover — slightly deeper shadow than the selected-card base. */
+.user-home-shell .agent-card--visible:hover .agent-card-face,
+.user-home-shell .agent-card--standalone:hover .agent-card-face {
+  box-shadow:
+    0 92px 200px rgba(15, 23, 42, 0.46),
+    0 38px 94px rgba(15, 23, 42, 0.28),
+    0 14px 32px rgba(15, 23, 42, 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.74) !important;
+}
 
 .agent-sync-note {
   margin: 8px 0 0;

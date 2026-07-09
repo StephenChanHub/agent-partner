@@ -55,9 +55,38 @@ export class ModelProfilesService {
     };
   }
 
-  list() { return mockModelProfiles; }
+  async list() {
+    if (this.prisma.isMockMode) return mockModelProfiles;
+    const items = await (this.prisma.db as any).modelProfile.findMany({
+      orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+    });
+    return items.map((item: any) => this.serialize(item));
+  }
 
-  create(dto: CreateModelProfileDto) {
+  async create(dto: CreateModelProfileDto) {
+    if (!this.prisma.isMockMode) {
+      const payload: any = {
+        provider: dto.provider,
+        displayName: dto.displayName,
+        modelName: dto.modelName,
+        baseUrl: dto.baseUrl ?? '',
+        apiKeyEncrypted: dto.apiKey ? this.crypto.encryptSecret(dto.apiKey) : null,
+        apiKeyLastFour: dto.apiKey ? dto.apiKey.slice(-4) : null,
+        defaultTemperature: dto.defaultTemperature ?? 0.7,
+        defaultMaxTokens: dto.defaultMaxTokens ?? 512,
+        defaultTimeoutMs: dto.defaultTimeoutMs ?? 30000,
+        status: 'ACTIVE',
+        isDefault: Boolean(dto.isDefault),
+      };
+      const saved = await (this.prisma.db as any).$transaction(async (tx: any) => {
+        if (payload.isDefault) {
+          await tx.modelProfile.updateMany({ data: { isDefault: false } });
+        }
+        return tx.modelProfile.create({ data: payload });
+      });
+      return this.serialize(saved);
+    }
+
     const now = new Date().toISOString();
     const item = {
       id: `model_profile_${Date.now()}`,
@@ -83,14 +112,42 @@ export class ModelProfilesService {
     return item;
   }
 
-  get(id: string) {
+  async get(id: string) {
+    if (!this.prisma.isMockMode) {
+      const item = await (this.prisma.db as any).modelProfile.findUnique({ where: { id } });
+      if (!item) throw new NotFoundException('Model profile not found');
+      return this.serialize(item);
+    }
     const item = mockModelProfiles.find((profile) => profile.id === id);
     if (!item) throw new NotFoundException('Model profile not found');
     return item;
   }
 
-  update(id: string, dto: UpdateModelProfileDto) {
-    const item = this.get(id) as any;
+  async update(id: string, dto: UpdateModelProfileDto) {
+    if (!this.prisma.isMockMode) {
+      await this.get(id);
+      const data: any = {
+        ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
+        ...(dto.modelName !== undefined ? { modelName: dto.modelName } : {}),
+        ...(dto.baseUrl !== undefined ? { baseUrl: dto.baseUrl } : {}),
+        ...(dto.defaultTemperature !== undefined ? { defaultTemperature: dto.defaultTemperature } : {}),
+        ...(dto.defaultMaxTokens !== undefined ? { defaultMaxTokens: dto.defaultMaxTokens } : {}),
+        ...(dto.defaultTimeoutMs !== undefined ? { defaultTimeoutMs: dto.defaultTimeoutMs } : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.isDefault !== undefined ? { isDefault: Boolean(dto.isDefault) } : {}),
+      };
+      if (dto.apiKey !== undefined) {
+        data.apiKeyEncrypted = dto.apiKey ? this.crypto.encryptSecret(dto.apiKey) : null;
+        data.apiKeyLastFour = dto.apiKey ? dto.apiKey.slice(-4) : null;
+      }
+      const saved = await (this.prisma.db as any).$transaction(async (tx: any) => {
+        if (dto.isDefault) await tx.modelProfile.updateMany({ data: { isDefault: false } });
+        return tx.modelProfile.update({ where: { id }, data });
+      });
+      return this.serialize(saved);
+    }
+
+    const item = (await this.get(id)) as any;
     if (dto.apiKey) {
       item.apiKeyConfigured = true;
       item.apiKeyMasked = '****' + dto.apiKey.slice(-4);
@@ -103,36 +160,91 @@ export class ModelProfilesService {
     return item;
   }
 
-  test(id: string, dto: TestModelProfileDto) {
-    const item = this.get(id);
+  async test(id: string, dto: TestModelProfileDto) {
+    const item = await this.get(id);
     return { success: true, id, provider: item.provider, modelName: item.modelName, latencyMs: 120, sampleOutput: 'Mock model profile test OK.', prompt: dto.prompt ?? 'hello' };
   }
 
-  setDefault(id: string) {
-    this.get(id);
+  async setDefault(id: string) {
+    if (!this.prisma.isMockMode) {
+      await this.get(id);
+      const saved = await (this.prisma.db as any).$transaction(async (tx: any) => {
+        await tx.modelProfile.updateMany({ data: { isDefault: false } });
+        return tx.modelProfile.update({ where: { id }, data: { isDefault: true, status: 'ACTIVE' } });
+      });
+      return this.serialize(saved);
+    }
+
+    await this.get(id);
     mockModelProfiles.forEach((profile) => { profile.isDefault = profile.id === id; });
     return this.get(id);
   }
 
-  delete(id: string) {
+  async delete(id: string) {
+    if (!this.prisma.isMockMode) {
+      await (this.prisma.db as any).modelProfile.delete({ where: { id } }).catch(() => {
+        throw new NotFoundException('Model profile not found');
+      });
+      return { deleted: true, id };
+    }
+
     const index = mockModelProfiles.findIndex((profile) => profile.id === id);
     if (index === -1) throw new NotFoundException('Model profile not found');
     mockModelProfiles.splice(index, 1);
     return { deleted: true, id };
   }
 
-  enable(id: string) {
-    const item = this.get(id) as any;
+  async enable(id: string) {
+    if (!this.prisma.isMockMode) {
+      const item = await (this.prisma.db as any).modelProfile.update({
+        where: { id },
+        data: { status: 'ACTIVE' },
+      }).catch(() => null);
+      if (!item) throw new NotFoundException('Model profile not found');
+      return this.serialize(item);
+    }
+
+    const item = (await this.get(id)) as any;
     item.status = 'ACTIVE';
     item.updatedAt = new Date().toISOString();
     return item;
   }
 
-  disable(id: string) {
-    const item = this.get(id) as any;
+  async disable(id: string) {
+    if (!this.prisma.isMockMode) {
+      const item = await (this.prisma.db as any).modelProfile.update({
+        where: { id },
+        data: { status: 'DISABLED', isDefault: false },
+      }).catch(() => null);
+      if (!item) throw new NotFoundException('Model profile not found');
+      return this.serialize(item);
+    }
+
+    const item = (await this.get(id)) as any;
     item.status = 'DISABLED';
     item.isDefault = false;
     item.updatedAt = new Date().toISOString();
     return item;
+  }
+
+  private serialize(item: any) {
+    return {
+      id: item.id,
+      provider: item.provider,
+      displayName: item.displayName,
+      name: item.displayName,
+      modelName: item.modelName,
+      model: item.modelName,
+      baseUrl: item.baseUrl ?? '',
+      apiKeyConfigured: Boolean(item.apiKeyEncrypted),
+      apiKeyMasked: item.apiKeyLastFour ? `****${item.apiKeyLastFour}` : '',
+      defaultTemperature: item.defaultTemperature !== null ? Number(item.defaultTemperature) : undefined,
+      defaultMaxTokens: item.defaultMaxTokens !== null ? Number(item.defaultMaxTokens) : undefined,
+      defaultTimeoutMs: item.defaultTimeoutMs !== null ? Number(item.defaultTimeoutMs) : undefined,
+      status: item.status,
+      isDefault: Boolean(item.isDefault),
+      createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : item.createdAt,
+      updatedAt: item.updatedAt instanceof Date ? item.updatedAt.toISOString() : item.updatedAt,
+    };
   }
 }

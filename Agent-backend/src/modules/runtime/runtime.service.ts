@@ -239,6 +239,95 @@ export class RuntimeService {
       model: modelName,
     });
 
+    const hasNoResponse = Boolean(llmResult.errorCode) || !String(llmResult.content ?? '').trim();
+    if (hasNoResponse) {
+      const now = Date.now();
+      const userMsgId = `msg_user_${now}`;
+      const assistantMsgId = `msg_assistant_${now}`;
+
+      if (this.prisma.isMockMode) {
+        mockMessages.push({
+          id: userMsgId,
+          agentSessionId: session.id,
+          role: 'USER',
+          content: dto.message,
+          metadata: {},
+          createdAt: new Date().toISOString(),
+        });
+        mockMessages.push({
+          id: assistantMsgId,
+          agentSessionId: session.id,
+          role: 'ASSISTANT',
+          content: '',
+          metadata: { llmError: llmResult.errorCode ?? 'NO_RESPONSE' },
+          createdAt: new Date().toISOString(),
+        });
+        session.messageCount = (session.messageCount ?? 0) + 2;
+        session.lastMessageAt = new Date().toISOString();
+        session.updatedAt = new Date().toISOString();
+      } else {
+        await (this.prisma.db as any).message.createMany({
+          data: [
+            {
+              id: userMsgId,
+              agentSessionId: session.id,
+              role: 'USER',
+              content: dto.message,
+              metadata: {},
+            },
+            {
+              id: assistantMsgId,
+              agentSessionId: session.id,
+              role: 'ASSISTANT',
+              content: '',
+              metadata: { llmError: llmResult.errorCode ?? 'NO_RESPONSE' },
+            },
+          ],
+        });
+        await (this.prisma.db as any).agentSession.update({
+          where: { id: session.id },
+          data: {
+            messageCount: { increment: 2 },
+            lastMessageAt: new Date(),
+          },
+        });
+      }
+
+      return {
+        sessionId: session.id,
+        userMessage: {
+          id: userMsgId,
+          role: 'user',
+          content: dto.message,
+          inputMode: 'text',
+        },
+        assistantMessage: {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: '',
+          responseMode: 'text',
+        },
+        llmError: { code: llmResult.errorCode ?? 'NO_RESPONSE' },
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          costAgentTokens: 0,
+          tier: 0,
+          balanceBefore: currentBalance,
+          balanceAfter: currentBalance,
+          provider: llmResult.provider,
+          model: llmResult.model,
+          profit: {
+            rawCostCny: 0,
+            profitRatio: null,
+            isLoss: false,
+          },
+        },
+        mode: llmResult.provider === 'deepseek' ? 'live' : 'mock',
+      };
+    }
+
     // 8. Calculate usage with tiered pricing + real cost tracking
     const inputTokens = llmResult.usage?.inputTokens ?? 0;
     const outputTokens = llmResult.usage?.outputTokens ?? 0;
